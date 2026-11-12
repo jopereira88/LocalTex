@@ -16,6 +16,18 @@ máquina ou no seu servidor. Compila com **LuaLaTeX**, **XeLaTeX** ou pdfLaTeX a
   (também com Ctrl+Espaço); separador «Referências» para procurar e inserir citações, assinalar
   citações sem entrada, chaves repetidas e entradas não citadas; cole um **DOI** (ou uma entrada
   BibTeX) para a acrescentar ao `.bib` (cria `references.bib` se não houver nenhum).
+- **Autocompletar** enquanto escreve: comandos (`\sec…` → `\section{}`, incluindo os
+  definidos no projeto com `\newcommand`), ambientes (`\begin{ite…` cria o bloco
+  `itemize` completo), rótulos em `\ref{…}`/`\cref{…}`, ficheiros em `\input{…}` e
+  `\includegraphics{…}`, e chaves de citação. Ctrl+Espaço mostra as sugestões a pedido.
+- **Git por projeto**: «Clonar Git» cria um projeto a partir de um repositório (GitHub,
+  GitLab…); o botão «Git» mostra o que mudou, recebe alterações (pull) e guarda/envia
+  versões (commit + push). Ver [Git](#git).
+- **Verificação ortográfica** em português (Portugal), inglês britânico e inglês americano,
+  enquanto escreve: palavras erradas sublinhadas, sugestões e dicionário do projeto no botão
+  direito. Ver [Ortografia](#ortografia).
+- **Interface em português ou inglês** (*Portuguese or English UI*): escolha no menu de idioma
+  da barra de cima; muda na hora, sem recarregar. Ver [Idioma](#idioma--language).
 - O motor é escolhido por projeto; em «Auto» respeita `% !TEX program = lualatex|xelatex` na
   primeiras linhas do ficheiro principal (por omissão, LuaLaTeX).
 
@@ -112,6 +124,72 @@ porque permite ao documento executar comandos na máquina.
 passa a uma caixa de texto simples e tudo o resto funciona. Para preparar uma pasta portátil
 num computador com Internet: `python server.py --fetch-vendor`.
 
+## Git
+
+Cada projeto pode ser um repositório Git independente. Precisa do `git` instalado na máquina
+onde corre o LocalTeX (a imagem Docker já o traz).
+
+- **Clonar Git** (barra de cima): cola o endereço do repositório e escolhe o nome do projeto.
+- **Git** (barra de cima): ativa o Git num projeto existente e liga-o a um repositório remoto
+  (crie-o vazio no site primeiro); mostra os ficheiros alterados; **Receber alterações**
+  (`git pull --rebase`, mantendo as suas alterações por guardar); **Guardar versão**
+  (`git commit`) e **Guardar e enviar** (`commit` + `push`).
+- O número junto ao botão indica ficheiros por guardar (●), versões por enviar (↑) ou por
+  receber (↓).
+- Ficheiros auxiliares do LaTeX, o PDF do documento principal e o `.localtex.json` ficam
+  fora das versões (via `.git/info/exclude`, sem alterar o `.gitignore` do repositório).
+- Se ao receber houver conflitos com alterações suas na mesma linha, **nada é alterado** e o
+  LocalTeX avisa; resolva com o git na linha de comandos.
+
+**Autenticação.** O LocalTeX nunca pede palavras-passe: usa as credenciais já configuradas
+na máquina onde corre (chave SSH registada no GitHub ou um *credential helper*). Em
+alternativa, use um token no endereço: `https://TOKEN@github.com/utilizador/repo.git`
+(fica guardado em texto simples em `.git/config` desse projeto; o LocalTeX esconde-o no
+ecrã). O nome e e-mail das versões vêm da configuração do git; se faltarem, o painel pede-os.
+
+## Ortografia
+
+Línguas: **português (Portugal, Acordo Ortográfico de 1990)**, **inglês britânico** e
+**inglês americano**. As palavras desconhecidas ficam sublinhadas a vermelho; **clique com o
+botão direito** numa delas para ver sugestões, acrescentá-la ao **dicionário do projeto** ou
+ignorá-la até fechar a página.
+
+- **Escolher a língua:** menu «Ortografia» no cabeçalho do editor (por projeto). Em
+  «automática» segue o `babel`/`polyglossia` do ficheiro principal (p. ex.
+  `\usepackage[british]{babel}` → inglês britânico); sem isso, usa a língua da interface.
+- **Um ficheiro noutra língua** (p. ex. o resumo em português numa tese em inglês): ponha numa
+  das primeiras linhas desse ficheiro `% !TeX spellcheck = pt_PT` (ou `en_GB`, `en_US`).
+- **O que não é verificado:** comandos, matemática, rótulos, citações, URLs, nomes de
+  ficheiros, listagens de código, siglas em maiúsculas e palavras com algarismos ou
+  maiúsculas no meio (`mRNA`, `H1N1`).
+- O dicionário do projeto fica em `.localtex.json` (campo `words`).
+- O inglês britânico segue a grafia *-ise* (organisation); se usa a grafia de Oxford (*-ize*),
+  acrescente essas palavras ao dicionário ou use o inglês americano.
+
+Os dicionários (Hunspell: Natura para pt-PT, SCOWL para inglês) são descarregados de
+cdn.jsdelivr.net na primeira utilização para a pasta `dictionaries/` (cerca de 2,5 MB); se o
+sistema tiver os do Hunspell em `/usr/share/hunspell`, usa esses. Com `--fetch-vendor` ficam
+todos descarregados de uma vez, para uso sem Internet. A verificação é feita pelo próprio
+`server.py` (não é preciso instalar o Hunspell).
+
+## Idioma / Language
+
+A interface existe em **português** e **inglês**. Muda-se no menu ao lado do botão
+«Compilar», a qualquer momento e sem perder trabalho; a escolha fica guardada no browser.
+Na primeira visita segue a língua do browser (português se for `pt-*`, inglês nos
+restantes casos). Também se pode forçar pelo endereço: `http://localhost:8765/?lang=en`.
+
+As mensagens do servidor (erros, avisos do Git, compilação) seguem a mesma língua; as
+mensagens do próprio LaTeX aparecem sempre como o LaTeX as escreve (em inglês).
+
+*The interface is available in Portuguese and English. Switch with the language menu next to
+the «Compile» button at any time; the choice is remembered in the browser. You can also open
+`http://localhost:8765/?lang=en`.*
+
+**Acrescentar uma língua:** em `static/i18n.js`, junte um dicionário
+`{texto em português: tradução}` a `DICTS` e o nome a `LANGS`; para as mensagens do servidor,
+um dicionário semelhante em `TRANSLATIONS` no `server.py`. O que faltar aparece em português.
+
 ## Quando um projeto do Overleaf não compila
 
 As causas habituais, por ordem de frequência:
@@ -132,12 +210,12 @@ O separador «Log» mostra o log completo da última compilação.
 ## O que não tem (por agora)
 
 Colaboração em tempo real, histórico de versões (use Git na pasta do projeto), SyncTeX
-(clique no PDF ↔ código), verificação ortográfica e autocompletar de comandos (só as
-chaves de citação são autocompletadas).
+(clique no PDF ↔ código), verificação gramatical e resolução de conflitos do Git dentro do
+editor.
 
 ## Versões
 
-A versão atual é a **1.1.0** (`python server.py --version`). As alterações de cada versão
+A versão atual é a **1.2.0** (`python server.py --version`). As alterações de cada versão
 estão em [CHANGELOG.md](CHANGELOG.md).
 
 O código do LocalTeX está em Git. A pasta `projects/` fica **fora** do repositório
@@ -147,4 +225,6 @@ Para versionar um documento, faça `git init` dentro da pasta desse projeto.
 ## Licenças de terceiros
 
 `static/vendor/pdfjs` contém o PDF.js (Mozilla, Apache-2.0). O CodeMirror 5 (MIT) é
-descarregado na primeira utilização.
+descarregado na primeira utilização. Os dicionários ortográficos, descarregados quando são
+precisos, têm licença própria: pt-PT do projeto Natura (GPL/LGPL/MPL), inglês do SCOWL
+(licença MIT/BSD).

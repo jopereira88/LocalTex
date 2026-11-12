@@ -26,7 +26,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"
@@ -103,6 +103,121 @@ class ApiError(Exception):
         super().__init__(message)
         self.status = status
         self.message = message
+
+
+# ---------------------------------------------------------------------- i18n
+
+# A interface pode estar em portugues (texto de origem) ou ingles. O browser indica a
+# lingua no cabecalho X-LocalTeX-Lang e as mensagens "error"/"message" das respostas sao
+# traduzidas a saida. Chaves: texto portugues exato; %s/%d marcam valores variaveis.
+MESSAGES_EN = {
+    "Nome de projeto inválido.": "Invalid project name.",
+    "Projeto não encontrado.": "Project not found.",
+    "Caminho inválido.": "Invalid path.",
+    "Caminho fora do projeto.": "Path outside the project.",
+    "O ficheiro não é um .zip válido.": "The file is not a valid .zip.",
+    "Arquivo demasiado grande.": "Archive too large.",
+    "Ficheiro principal não encontrado: %s": "Main file not found: %s",
+    "O motor «%s» não foi encontrado. Indique a pasta da distribuição TeX com --texbin (ver README).":
+        "The «%s» engine was not found. Point to your TeX distribution folder with --texbin (see README).",
+    "Compilação interrompida: excedeu %d s.": "Compilation stopped: exceeded %d s.",
+    "A compilação falhou (código %s). Fim da saída:\n%s": "Compilation failed (code %s). End of output:\n%s",
+    "%s (em %s, linha %s)": "%s (in %s, line %s)",
+    " (%s, linha %s)": " (%s, line %s)",
+    "Caracteres sem glifo na fonte %s: %s": "Characters with no glyph in font %s: %s",
+    "DOI inválido (deve começar por 10.).": "Invalid DOI (must start with 10.).",
+    "Modo offline: não é possível consultar o DOI.": "Offline mode: cannot look up the DOI.",
+    "DOI não encontrado.": "DOI not found.",
+    "doi.org respondeu %s.": "doi.org answered %s.",
+    "Não foi possível contactar doi.org: %s": "Could not reach doi.org: %s",
+    "doi.org não devolveu BibTeX.": "doi.org did not return BibTeX.",
+    "Entrada BibTeX inválida.": "Invalid BibTeX entry.",
+    "O git não está instalado nesta máquina.": "git is not installed on this machine.",
+    "O git demorou demasiado (rede ou autenticação?).": "git took too long (network or authentication?).",
+    "Sem credenciais para este repositório. Configure uma chave SSH ou um credential helper na "
+    "máquina onde corre o LocalTeX, ou use um URL com token (https://TOKEN@github.com/utilizador/repo.git).":
+        "No credentials for this repository. Set up an SSH key or a credential helper on the machine "
+        "running LocalTeX, or use a URL with a token (https://TOKEN@github.com/user/repo.git).",
+    "Indique o seu nome e e-mail no painel Git.": "Enter your name and e-mail in the Git panel.",
+    "O repositório remoto tem alterações que ainda não tem. Faça «Receber» primeiro.":
+        "The remote repository has changes you don't have yet. Use «Pull» first.",
+    "Repositório não encontrado (endereço errado ou sem acesso).":
+        "Repository not found (wrong address or no access).",
+    "Endereço Git inválido (use https://… ou git@servidor:utilizador/repo.git).":
+        "Invalid Git address (use https://… or git@server:user/repo.git).",
+    "Nome de ramo inválido.": "Invalid branch name.",
+    "Indique um nome e um e-mail válidos.": "Enter a valid name and e-mail.",
+    "Este projeto não tem repositório remoto (origin).": "This project has no remote repository (origin).",
+    "O remoto ainda não tem o ramo «%s»; nada para receber.":
+        "The remote doesn't have branch «%s» yet; nothing to pull.",
+    "Não foi possível juntar as alterações automaticamente (há conflitos com as suas). Nada foi alterado.":
+        "Could not merge the changes automatically (they conflict with yours). Nothing was changed.",
+    "Atualizado. Última versão: %s": "Up to date. Latest version: %s",
+    "Versão guardada localmente, mas o projeto não tem repositório remoto para onde enviar.":
+        "Version saved locally, but the project has no remote repository to push to.",
+    "Ficheiro demasiado grande.": "File too large.",
+    "JSON inválido.": "Invalid JSON.",
+    "Origem não permitida.": "Origin not allowed.",
+    "Método não suportado.": "Method not supported.",
+    "Biblioteca indisponível.": "Library unavailable.",
+    "Não encontrado.": "Not found.",
+    "Já existe um projeto com esse nome.": "A project with that name already exists.",
+    "Rota desconhecida.": "Unknown route.",
+    "Ficheiro não encontrado.": "File not found.",
+    "Já existe uma pasta com esse nome.": "A folder with that name already exists.",
+    "Origem não encontrada.": "Source not found.",
+    "O destino já existe.": "The destination already exists.",
+    "O projeto não tem nenhum ficheiro .tex.": "The project has no .tex file.",
+    "Já existe uma compilação em curso neste projeto.": "A compilation is already running for this project.",
+    "Já existe uma operação Git em curso neste projeto.": "A Git operation is already running for this project.",
+    "Erro interno: %s": "Internal error: %s",
+    "Língua de verificação desconhecida: %s": "Unknown spellcheck language: %s",
+    "Não foi possível obter o dicionário %s (sem Internet?).":
+        "Could not get the %s dictionary (no Internet?).",
+}
+TRANSLATIONS = {"en": MESSAGES_EN}
+REQ = threading.local()
+
+
+def _compile_messages(table):
+    out = []
+    for pt, tr in sorted(table.items(), key=lambda kv: -len(kv[0])):
+        if "%" not in pt:
+            out.append((None, pt, tr))
+            continue
+        parts = re.split(r"%[sd]", pt)
+        pat = "".join(re.escape(x) + ("(.*?)" if i < len(parts) - 1 else "")
+                      for i, x in enumerate(parts))
+        if pt.endswith(("%s", "%d")):
+            pat = pat[:-len("(.*?)")] + "(.*)"
+        out.append((re.compile(pat, re.S), pt, re.sub(r"%[sd]", "%s", tr)))
+    return out
+
+
+COMPILED = {lang: _compile_messages(t) for lang, t in TRANSLATIONS.items()}
+
+
+def localize(text, lang=None):
+    """Traduz as partes de uma mensagem que correspondem a textos conhecidos."""
+    lang = lang or getattr(REQ, "lang", "pt")
+    if lang not in COMPILED or not isinstance(text, str):
+        return text
+    for rx, pt, tr in COMPILED[lang]:
+        if rx is None:
+            if pt in text:
+                text = text.replace(pt, tr)
+        elif rx.search(text):
+            text = rx.sub(lambda m: tr % m.groups(), text, count=1)
+    return text
+
+
+def localize_json(obj):
+    if isinstance(obj, dict):
+        return {k: (localize(v) if k in ("error", "message") else localize_json(v))
+                for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [localize_json(v) for v in obj]
+    return obj
 
 
 # ----------------------------------------------------------------- TeX lookup
@@ -368,6 +483,11 @@ def compile_project(proj, main_rel, engine, shell_escape):
     if latexmk:
         rc = step([latexmk, ENGINES[engine]] + opts + [main.name])
         tool = "latexmk"
+        # o latexmk recusa-se a recompilar se se lembrar de erros de uma execucao anterior
+        # ("Nothing to do ... gave an error in previous invocation"); forca com -g para
+        # que os erros reais voltem a aparecer no log.
+        if rc != 0 and not timed_out and "previous invocation" in transcript[-1]:
+            rc = step([latexmk, "-g", ENGINES[engine]] + opts + [main.name])
     else:
         tool = "sequência interna (latexmk indisponível)"
         base = [eng_path] + opts + [main.name]
@@ -400,6 +520,9 @@ def compile_project(proj, main_rel, engine, shell_escape):
     if log.exists() and log.stat().st_mtime >= started - 2:
         log_text = log.read_text("utf-8", "replace")
     issues = parse_log(log_text, proj, cwd)
+    blg = cwd / (stem + ".blg")
+    if blg.exists() and blg.stat().st_mtime >= started - 2:
+        issues = parse_blg(blg.read_text("utf-8", "replace"), proj, cwd) + issues
     if timed_out:
         issues.insert(0, {"level": "error", "file": None, "line": None,
                           "message": "Compilação interrompida: excedeu %d s." % CFG.timeout})
@@ -421,6 +544,50 @@ def compile_project(proj, main_rel, engine, shell_escape):
         "log": log_text[-400000:],
         "output": "\n".join(transcript)[-200000:],
     }
+
+
+BLG_LOC_RE = re.compile(r"-+line (\d+) of file (\S+)")
+
+
+def parse_blg(text, proj, cwd):
+    """Erros e avisos do BibTeX/biber (.blg) como problemas clicaveis."""
+    issues, root = [], proj.resolve()
+
+    def rel(name):
+        try:
+            p = (cwd / name).resolve()
+            return p.relative_to(root).as_posix() if p.is_file() else None
+        except (OSError, ValueError):
+            return None
+
+    lines = text.splitlines()
+    for i, ln in enumerate(lines):
+        m = re.match(r"^\[\d+\] .*?> (ERROR|WARN) - (.*)$", ln)  # biber
+        if m:
+            msg = "biber: " + m.group(2)
+            fm = re.search(r"(\S+\.bib)', line (\d+)|in file '?([^',]+\.bib)'?.*?line (\d+)", msg)
+            f = rel(fm.group(1) or fm.group(3)) if fm else None
+            line = int(fm.group(2) or fm.group(4)) if fm and f else None
+            issues.append({"level": "error" if m.group(1) == "ERROR" else "warning",
+                           "file": f, "line": line, "message": msg})
+            continue
+        lm = BLG_LOC_RE.search(ln)  # bibtex: "Repeated entry---line 390 of file x.bib"
+        if lm:
+            msg = ln[:lm.start()].strip() or (lines[i - 1].strip() if i else "")
+            ctx = [x.strip() for x in lines[i + 1:i + 3] if x.startswith(" :")]
+            if ctx:
+                msg += "\n" + "\n".join(ctx)
+            f = rel(lm.group(2))
+            issues.append({"level": "error", "file": f, "line": int(lm.group(1)) if f else None,
+                           "message": "BibTeX: " + msg + ("" if f else " (%s, linha %s)"
+                                                          % (lm.group(2), lm.group(1)))})
+        elif ln.startswith("Warning--"):
+            issues.append({"level": "warning", "file": None, "line": None,
+                           "message": "BibTeX: " + ln[9:].strip()})
+        elif re.match(r"^I (couldn't open|found no)", ln):
+            issues.append({"level": "error", "file": None, "line": None,
+                           "message": "BibTeX: " + ln.strip()})
+    return issues[:200]
 
 
 def _log_wants_rerun(log):
@@ -545,8 +712,8 @@ def parse_log(text, proj, cwd):
         i += 1
     for font, chars in missing.items():
         if font != "nullfont":
-            add("warning", "Caracteres sem glifo na fonte %s: %s%s" % (
-                font, " ".join(chars[:40]), " …" if len(chars) > 40 else ""))
+            add("warning", "Caracteres sem glifo na fonte %s: %s" % (
+                font, " ".join(chars[:40]) + (" …" if len(chars) > 40 else "")))
     order = {"error": 0, "warning": 1, "box": 2}
     issues.sort(key=lambda x: order[x["level"]])
     return issues
@@ -776,6 +943,503 @@ def add_bib_entry(proj, bibtex, target):
     return {"key": key, "file": rel, "existed": False, "created": not old}
 
 
+# ----------------------------------------------------------------------- git
+
+# Usa o git do sistema e as credenciais ja configuradas na maquina (credential helper,
+# chave SSH, ou um token no URL). Nunca pede nada no terminal: falha com mensagem clara.
+GIT_URL_RE = re.compile(r"^(?:https?://|ssh://|git://)[^\s]+$|^[\w.\-]+@[\w.\-]+:[^\s]+$")
+GIT_EXCLUDE_MARK = "# LocalTeX: ficheiros auxiliares"
+
+
+def git_env():
+    env = dict(os.environ)
+    env.update({"GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never", "LC_ALL": "C",
+                "GIT_SSH_COMMAND": env.get("GIT_SSH_COMMAND", "ssh -o BatchMode=yes"),
+                # nunca subir ate a pasta-mae (o proprio LocalTeX pode ser um repositorio)
+                "GIT_CEILING_DIRECTORIES": str(CFG.projects)})
+    return env
+
+
+def git(cwd, *args, check=True, timeout=180):
+    exe = shutil.which("git")
+    if not exe:
+        raise ApiError(400, "O git não está instalado nesta máquina.")
+    try:
+        p = subprocess.run([exe] + list(args), cwd=str(cwd), env=git_env(),
+                           stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise ApiError(504, "O git demorou demasiado (rede ou autenticação?).")
+    out = (p.stdout + p.stderr).decode("utf-8", "replace").strip()
+    if check and p.returncode != 0:
+        raise ApiError(400, git_explain(out))
+    return p.returncode, out
+
+
+def git_explain(out):
+    low = out.lower()
+    hint = ""
+    if "could not read username" in low or "authentication failed" in low \
+            or "permission denied (publickey)" in low or "terminal prompts disabled" in low:
+        hint = ("\n\nSem credenciais para este repositório. Configure uma chave SSH ou um "
+                "credential helper na máquina onde corre o LocalTeX, ou use um URL com token "
+                "(https://TOKEN@github.com/utilizador/repo.git).")
+    elif "please tell me who you are" in low or "empty ident" in low:
+        hint = "\n\nIndique o seu nome e e-mail no painel Git."
+    elif "non-fast-forward" in low or "fetch first" in low or "rejected" in low:
+        hint = "\n\nO repositório remoto tem alterações que ainda não tem. Faça «Receber» primeiro."
+    elif "repository not found" in low or "does not appear to be a git repository" in low:
+        hint = "\n\nRepositório não encontrado (endereço errado ou sem acesso)."
+    return redact(out[-3000:]) + hint
+
+
+def redact(text):
+    return re.sub(r"(https?://)[^/@\s]+@", r"\1***@", text or "")
+
+
+def check_git_url(url):
+    url = (url or "").strip()
+    if not GIT_URL_RE.match(url) or url.startswith("-"):
+        raise ApiError(400, "Endereço Git inválido (use https://… ou git@servidor:utilizador/repo.git).")
+    return url
+
+
+def git_prepare(proj):
+    """Exclui os auxiliares do LaTeX e o PDF do documento principal via .git/info/exclude
+    (nao mexe no .gitignore do repositorio; ficheiros ja seguidos pelo git nao sao afetados,
+    e os PDF usados como figuras continuam a entrar)."""
+    ex = proj / ".git" / "info" / "exclude"
+    try:
+        old = ex.read_text("utf-8") if ex.exists() else ""
+        want = []
+        if GIT_EXCLUDE_MARK not in old:
+            want = [GIT_EXCLUDE_MARK] + ["*." + e for e in sorted(AUX_EXT)] + \
+                ["*" + x for x in AUX_SUFFIX] + [SETTINGS_FILE, "*.~tmp", "_minted*/"]
+        main = guess_main(proj, load_settings(proj))
+        if main:
+            pdf = "/" + re.sub(r"\.tex$", ".pdf", main, flags=re.I)
+            if pdf not in old.splitlines():
+                want.append(pdf)
+        if want:
+            ex.parent.mkdir(parents=True, exist_ok=True)
+            sep = "\n" if old and not old.endswith("\n") else ""
+            ex.write_text(old + sep + "\n".join(want) + "\n", "utf-8")
+    except OSError:
+        pass
+
+
+def is_repo(proj):
+    return (proj / ".git").exists()
+
+
+def git_clone(url, proj, branch=None):
+    url = check_git_url(url)
+    args = ["clone", "--quiet"]
+    if branch:
+        if not re.match(r"^[\w./\-]+$", branch) or branch.startswith("-"):
+            raise ApiError(400, "Nome de ramo inválido.")
+        args += ["--branch", branch]
+    try:
+        git(CFG.projects, *args, "--", url, proj.name, timeout=600)
+    except Exception:
+        shutil.rmtree(proj, ignore_errors=True)
+        raise
+    git_prepare(proj)
+
+
+def git_status(proj):
+    if not is_repo(proj):
+        return {"repo": False, "git": bool(shutil.which("git"))}
+    git_prepare(proj)
+    _, out = git(proj, "status", "--porcelain=v1", "-b", "-uall")
+    lines = out.splitlines()
+    head = lines[0][3:] if lines and lines[0].startswith("## ") else ""
+    m = re.match(r"(?:No commits yet on |Initial commit on )?([^.\s]+)(?:\.\.\.(\S+))?(?: \[(.*)\])?", head)
+    info = {"repo": True, "branch": m.group(1) if m else head, "upstream": m.group(2) if m else None,
+            "ahead": 0, "behind": 0, "changes": []}
+    if m and m.group(3):
+        for part in m.group(3).split(","):
+            k, _, v = part.strip().partition(" ")
+            if k in ("ahead", "behind") and v.isdigit():
+                info[k] = int(v)
+    labels = {"M": "alterado", "A": "novo", "D": "apagado", "R": "renomeado", "?": "novo",
+              "U": "conflito", "C": "copiado"}
+    for ln in lines[1:]:
+        xy, path = ln[:2], ln[3:]
+        code = "U" if "U" in xy or xy in ("AA", "DD") else (xy.strip() or "M")[0]
+        info["changes"].append({"path": path.split(" -> ")[-1].strip('"'),
+                                "state": labels.get(code, code)})
+    _, remote = git(proj, "remote", "get-url", "origin", check=False)
+    info["remote"] = redact(remote) if remote and "error" not in remote.lower() \
+        and "no such remote" not in remote.lower() else None
+    _, name = git(proj, "config", "user.name", check=False)
+    _, email = git(proj, "config", "user.email", check=False)
+    info["identity"] = {"name": name, "email": email} if name and email else None
+    _, last = git(proj, "log", "-1", "--format=%h %s (%cr)", check=False)
+    info["last"] = last if last and not last.startswith("fatal") else None
+    return info
+
+
+def git_init(proj, url):
+    if not is_repo(proj):
+        git(proj, "init", "--quiet")
+        _, cur = git(proj, "symbolic-ref", "--short", "HEAD", check=False)
+        if cur == "master":
+            git(proj, "symbolic-ref", "HEAD", "refs/heads/main")
+    git_prepare(proj)
+    if url:
+        url = check_git_url(url)
+        rc, _ = git(proj, "remote", "get-url", "origin", check=False)
+        git(proj, "remote", "set-url" if rc == 0 else "add", "origin", url)
+
+
+def git_identity(proj, name, email):
+    name, email = (name or "").strip(), (email or "").strip()
+    if not name or "@" not in email or "\n" in name + email:
+        raise ApiError(400, "Indique um nome e um e-mail válidos.")
+    git(proj, "config", "user.name", name)
+    git(proj, "config", "user.email", email)
+
+
+def git_pull(proj):
+    st = git_status(proj)
+    if not st.get("remote"):
+        raise ApiError(400, "Este projeto não tem repositório remoto (origin).")
+    git(proj, "fetch", "--quiet", "origin", timeout=600)
+    if not st.get("upstream"):
+        rc, _ = git(proj, "rev-parse", "--verify", "--quiet", "origin/" + st["branch"], check=False)
+        if rc != 0:
+            return {"message": "O remoto ainda não tem o ramo «%s»; nada para receber." % st["branch"]}
+        git(proj, "branch", "--set-upstream-to=origin/" + st["branch"], check=False)
+    rc, out = git(proj, "pull", "--rebase", "--autostash", "--quiet", check=False, timeout=600)
+    if rc != 0:
+        git(proj, "rebase", "--abort", check=False)
+        raise ApiError(409, "Não foi possível juntar as alterações automaticamente (há conflitos "
+                            "com as suas). Nada foi alterado.\n\n" + git_explain(out))
+    _, after = git(proj, "log", "-1", "--format=%h %s", check=False)
+    return {"message": "Atualizado. Última versão: " + after}
+
+
+def git_commit(proj, message, push):
+    message = (message or "").strip() or "Alterações feitas no LocalTeX"
+    git_prepare(proj)
+    git(proj, "add", "-A")
+    rc, _ = git(proj, "diff", "--cached", "--quiet", check=False)
+    committed = False
+    if rc != 0:
+        git(proj, "commit", "--quiet", "-m", message)
+        committed = True
+    pushed = False
+    if push:
+        st = git_status(proj)
+        if not st.get("remote"):
+            raise ApiError(400, "Versão guardada localmente, mas o projeto não tem repositório "
+                                "remoto para onde enviar.")
+        if st.get("upstream"):
+            git(proj, "push", "--quiet", timeout=600)
+        else:
+            git(proj, "push", "--quiet", "-u", "origin", "HEAD", timeout=600)
+        pushed = True
+    return {"committed": committed, "pushed": pushed}
+
+
+# ------------------------------------------------------------------- symbols
+
+LABEL_RE = re.compile(r"\\label\s*\{([^}]+)\}")
+NEWCMD_RE = re.compile(r"\\(?:re)?newcommand\*?\s*\{?\s*\\([a-zA-Z@]+)\s*\}?\s*(?:\[(\d)\])?"
+                       r"|\\(?:DeclareMathOperator|DeclareRobustCommand)\*?\s*\{?\s*\\([a-zA-Z@]+)"
+                       r"|\\def\s*\\([a-zA-Z@]+)")
+NEWENV_RE = re.compile(r"\\(?:re)?newenvironment\*?\s*\{([^}]+)\}|\\newtheorem\*?\s*\{([^}]+)\}")
+
+
+def project_symbols(proj):
+    """Rotulos (\\label), comandos e ambientes definidos no projeto, para autocompletar."""
+    labels, cmds, envs = [], {}, set()
+    for rel in project_files(proj, (".tex", ".sty", ".cls")):
+        try:
+            lines = (proj / rel).read_text("utf-8", "replace").splitlines()
+        except OSError:
+            continue
+        for n, ln in enumerate(lines, 1):
+            ln = COMMENT_RE.sub("", ln)
+            for m in LABEL_RE.finditer(ln):
+                labels.append({"key": m.group(1).strip(), "file": rel, "line": n,
+                               "context": ln.strip()[:120]})
+            for m in NEWCMD_RE.finditer(ln):
+                name = m.group(1) or m.group(3) or m.group(4)
+                cmds.setdefault(name, int(m.group(2) or 0))
+            for m in NEWENV_RE.finditer(ln):
+                envs.add((m.group(1) or m.group(2)).strip())
+        if len(labels) > 5000:
+            break
+    return {"labels": labels, "commands": [{"name": k, "args": v} for k, v in sorted(cmds.items())],
+            "environments": sorted(envs)}
+
+
+# ------------------------------------------------------------------- spelling
+
+# Verificador ortografico proprio, compativel com os dicionarios Hunspell (.aff/.dic):
+# em vez de gerar todas as formas das palavras (milhoes, em portugues), retira prefixos e
+# sufixos a palavra ate chegar a um radical do dicionario, como faz o Hunspell. Carrega em
+# menos de um segundo e nao precisa de nada instalado. Os dicionarios sao descarregados na
+# primeira utilizacao (como as bibliotecas do editor) ou lidos de /usr/share/hunspell.
+SPELL_LANGS = {
+    "pt_PT": ("Português (Portugal)", "dictionary-pt-pt@2.0.0"),
+    "en_GB": ("English (UK)", "dictionary-en-gb@3.0.0"),
+    "en_US": ("English (US)", "dictionary-en@4.0.0"),
+}
+SYSTEM_DICT_DIRS = ("/usr/share/hunspell", "/usr/share/myspell", "/usr/share/myspell/dicts")
+SPELLERS = {}
+SPELLERS_GUARD = threading.Lock()
+
+
+class Speller:
+    def __init__(self, aff_text, dic_text):
+        self.sfx, self.pfx = {}, {}          # add -> [(flag, strip, cond_re, cross)]
+        self.rep, self.maps, self.try_chars = [], [], ""
+        self.nosuggest, self.onlycompound, self.forbidden = None, None, None
+        groups = {}
+        for raw in aff_text.splitlines():
+            parts = raw.split()
+            if not parts or parts[0].startswith("#"):
+                continue
+            key = parts[0]
+            if key in ("SFX", "PFX") and len(parts) >= 4:
+                flag = parts[1]
+                if flag not in groups.get(key, {}):  # cabecalho: SFX flag cross N
+                    groups.setdefault(key, {})[flag] = parts[2] == "Y"
+                    continue
+                strip = "" if parts[2] == "0" else parts[2]
+                add = parts[3].split("/")[0]
+                add = "" if add == "0" else add
+                cond = parts[4] if len(parts) > 4 else "."
+                try:
+                    rx = re.compile(("(?:%s)$" if key == "SFX" else "^(?:%s)") % cond)
+                except re.error:
+                    continue
+                table = self.sfx if key == "SFX" else self.pfx
+                table.setdefault(add, []).append((flag, strip, rx, groups[key][flag]))
+            elif key == "REP" and len(parts) == 3:
+                self.rep.append((parts[1].replace("_", " "), parts[2].replace("_", " ")))
+            elif key == "MAP" and len(parts) == 2 and not parts[1].isdigit():
+                self.maps.append(re.findall(r"\([^)]*\)|.", parts[1]))
+            elif key == "TRY" and len(parts) == 2:
+                self.try_chars = parts[1]
+            elif key == "NOSUGGEST" and len(parts) == 2:
+                self.nosuggest = parts[1]
+            elif key == "ONLYINCOMPOUND" and len(parts) == 2:
+                self.onlycompound = parts[1]
+            elif key == "FORBIDDENWORD" and len(parts) == 2:
+                self.forbidden = parts[1]
+        self.words = {}
+        for i, line in enumerate(dic_text.splitlines()):
+            if i == 0 and line.strip().isdigit():
+                continue
+            entry = line.split("\t")[0].split(" ")[0].strip()
+            if not entry:
+                continue
+            word, _, flags = entry.partition("/")
+            if word:
+                self.words[word] = self.words.get(word, "") + flags
+        self.sfx_max = max((len(a) for a in self.sfx), default=0)
+        self.pfx_max = max((len(a) for a in self.pfx), default=0)
+
+    # -- verificacao
+    def _root(self, stem, flag):
+        f = self.words.get(stem)
+        return f is not None and flag in f and not (self.forbidden and self.forbidden in f)
+
+    def _suffixed(self, w, need=None):
+        """w = radical + sufixo? (need: o radical tem de ter tambem esta flag de prefixo)"""
+        n = len(w)
+        for k in range(max(0, n - self.sfx_max), n + 1):
+            for flag, strip, rx, cross in self.sfx.get(w[k:], ()):
+                stem = w[:k] + strip
+                if not stem or not rx.search(stem):
+                    continue
+                if need is None and self._root(stem, flag):
+                    return True
+                if need is not None and cross and self._root(stem, flag) and need in self.words[stem]:
+                    return True
+        return False
+
+    def _lookup(self, w):
+        f = self.words.get(w)
+        if f is not None:
+            bad = (self.onlycompound and self.onlycompound in f) or (self.forbidden and self.forbidden in f)
+            if not bad:
+                return True
+        if self._suffixed(w):
+            return True
+        for k in range(0, min(len(w), self.pfx_max) + 1):
+            for flag, strip, rx, cross in self.pfx.get(w[:k], ()):
+                stem = strip + w[k:]
+                if not stem or not rx.search(stem):
+                    continue
+                if self._root(stem, flag):
+                    return True
+                if cross and self._suffixed(stem, need=flag):
+                    return True
+        return False
+
+    def check(self, w):
+        w = w.replace("’", "'")
+        if self._lookup(w):
+            return True
+        if w[:1].isupper():
+            low = w[:1].lower() + w[1:]
+            if self._lookup(low) or (w.isupper() and (self._lookup(w.lower())
+                                                       or self._lookup(w[:1] + w[1:].lower()))):
+                return True
+            if w[1:].islower() is False and self._lookup(w.lower()):
+                return True
+        if "-" in w.strip("-"):
+            return all(self.check(p) for p in w.split("-") if p)
+        return False
+
+    # -- sugestoes
+    def suggest(self, w, limit=8):
+        w = w.replace("’", "'")
+        cap = w[:1].isupper() and not w.isupper()
+        base = w[:1].lower() + w[1:] if cap else w
+        out, seen = [], {base}
+
+        def ok(c):
+            if c in seen or not c:
+                return
+            seen.add(c)
+            if " " in c:
+                if all(self.check(p) for p in c.split(" ")):
+                    out.append(c)
+            elif self.check(c):
+                f = self.words.get(c, "")
+                if not (self.nosuggest and self.nosuggest in f):
+                    out.append(c)
+        for a, b in self.rep:                       # erros tipicos da lingua
+            i = base.find(a)
+            while i >= 0:
+                ok(base[:i] + b + base[i + len(a):])
+                i = base.find(a, i + 1)
+        for group in self.maps:                     # acentos e letras equivalentes
+            for i, ch in enumerate(base):
+                if ch in group:
+                    for alt in group:
+                        if alt != ch and len(alt) == 1:
+                            ok(base[:i] + alt + base[i + 1:])
+        letters = self.try_chars or "abcdefghijklmnopqrstuvwxyz"
+        n = len(base)
+        for i in range(n - 1):                      # letras trocadas
+            ok(base[:i] + base[i + 1] + base[i] + base[i + 2:])
+        for i in range(n):                          # letra a mais
+            ok(base[:i] + base[i + 1:])
+        for i in range(n):                          # letra errada
+            for c in letters:
+                if c != base[i] and c.islower() == base[i].islower():
+                    ok(base[:i] + c + base[i + 1:])
+        for i in range(n + 1):                      # letra em falta
+            for c in letters:
+                if c.islower():
+                    ok(base[:i] + c + base[i:])
+        for i in range(1, n):                       # duas palavras coladas
+            ok(base[:i] + " " + base[i:])
+        if len(out) < 3:                            # acento + outro erro
+            for group in self.maps:
+                for i, ch in enumerate(base):
+                    if ch in group:
+                        for alt in group:
+                            if alt != ch and len(alt) == 1:
+                                v = base[:i] + alt + base[i + 1:]
+                                for j in range(len(v) + 1):
+                                    for c in letters[:20]:
+                                        if c.islower():
+                                            ok(v[:j] + c + v[j:])
+                                for j in range(len(v)):
+                                    ok(v[:j] + v[j + 1:])
+        res = out[:limit]
+        return [r[:1].upper() + r[1:] for r in res] if cap else res
+
+
+def dict_files(lang):
+    """Caminhos (.aff, .dic): do sistema, ou da pasta dictionaries/ (descarrega se faltar)."""
+    for d in SYSTEM_DICT_DIRS:
+        aff, dic = Path(d) / (lang + ".aff"), Path(d) / (lang + ".dic")
+        if aff.is_file() and dic.is_file():
+            return aff, dic
+    base = ROOT / "dictionaries"
+    aff, dic = base / (lang + ".aff"), base / (lang + ".dic")
+    if aff.is_file() and dic.is_file():
+        return aff, dic
+    if CFG.offline:
+        return None
+    pkg = SPELL_LANGS[lang][1]
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+        for ext, dest in (("aff", aff), ("dic", dic)):
+            req = urllib.request.Request(CDN + pkg + "/index." + ext, headers={"User-Agent": "LocalTeX"})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                data = r.read()
+            tmp = dest.with_suffix(".part")
+            tmp.write_bytes(data)
+            tmp.replace(dest)
+        return aff, dic
+    except Exception:
+        return None
+
+
+def speller(lang):
+    if lang not in SPELL_LANGS:
+        raise ApiError(400, "Língua de verificação desconhecida: %s" % lang)
+    with SPELLERS_GUARD:
+        sp = SPELLERS.get(lang)
+        if sp is None:
+            files = dict_files(lang)
+            if not files:
+                raise ApiError(503, "Não foi possível obter o dicionário %s (sem Internet?)." % lang)
+            enc_ = "utf-8"
+            head = files[0].read_bytes()[:4000].decode("latin-1")
+            m = re.search(r"^SET\s+(\S+)", head, re.M)
+            if m and m.group(1).upper() not in ("UTF-8", "UTF8"):
+                enc_ = {"ISO8859-1": "latin-1", "ISO8859-15": "iso8859-15"}.get(m.group(1).upper(), "latin-1")
+            sp = Speller(files[0].read_text(enc_, "replace"), files[1].read_text(enc_, "replace"))
+            SPELLERS[lang] = sp
+    return sp
+
+
+def spell_check_words(lang, words):
+    sp = speller(lang)
+    wrong = []
+    for w in words[:20000]:
+        if isinstance(w, str) and 1 < len(w) <= 60 and not sp.check(w):
+            wrong.append(w)
+    return wrong
+
+
+BABEL_LANGS = {"portuguese": "pt_PT", "portuges": "pt_PT", "portugues": "pt_PT",
+               "british": "en_GB", "ukenglish": "en_GB", "english": "en_US",
+               "american": "en_US", "usenglish": "en_US", "brazil": "pt_PT", "brazilian": "pt_PT"}
+
+
+def guess_spell_lang(proj, main):
+    """Lingua a partir do babel/polyglossia do ficheiro principal (a ultima opcao manda)."""
+    try:
+        head = COMMENT_RE.sub("", (proj / main).read_text("utf-8", "replace")[:30000])
+    except (OSError, TypeError):
+        return None
+    m = re.search(r"\\usepackage\s*\[([^\]]*)\]\s*\{babel\}", head)
+    if m:
+        opts = [o.strip().lower() for o in m.group(1).split(",") if o.strip()]
+        main_opt = next((o.split("=")[1] for o in opts if o.startswith("main=")), None)
+        for o in ([main_opt] if main_opt else []) + opts[::-1]:
+            if o in BABEL_LANGS:
+                return BABEL_LANGS[o]
+    m = re.search(r"\\setmainlanguage\s*(?:\[([^\]]*)\])?\s*\{(\w+)\}", head)
+    if m:
+        lang, opt = m.group(2).lower(), (m.group(1) or "").lower()
+        if lang == "english":
+            return "en_GB" if "british" in opt or "uk" in opt else "en_US"
+        return BABEL_LANGS.get(lang)
+    return None
+
+
 # ----------------------------------------------------------------- wordcount
 
 TC_FIELDS = {"Words in text": "text", "Words in headers": "headers",
@@ -890,6 +1554,8 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(data)
 
     def send_json(self, obj, status=200):
+        if getattr(REQ, "lang", "pt") != "pt":
+            obj = localize_json(obj)
         self.send_bytes(json.dumps(obj).encode("utf-8"), "application/json; charset=utf-8", status)
 
     def body(self):
@@ -924,6 +1590,8 @@ class Handler(BaseHTTPRequestHandler):
         return urlsplit(origin).netloc == self.headers.get("Host")
 
     def dispatch(self):
+        lang = (self.headers.get("X-LocalTeX-Lang") or "pt").strip().lower()[:5]
+        REQ.lang = lang if lang in TRANSLATIONS else "pt"
         try:
             if not self.authorized():
                 self.send_bytes(b"Autenticacao necessaria.", "text/plain", 401,
@@ -987,8 +1655,18 @@ class Handler(BaseHTTPRequestHandler):
                 "engines": {e: bool(which(e)) for e in ENGINES},
                 "latexmk": bool(which("latexmk")) and not CFG.no_latexmk,
                 "biber": bool(which("biber")), "bibtex": bool(which("bibtex")),
-                "projectsDir": str(CFG.projects),
+                "projectsDir": str(CFG.projects), "git": bool(shutil.which("git")),
+            "version": __version__,
             })
+        if parts == ["spell"] and m == "GET":
+            return self.send_json({k: v[0] for k, v in SPELL_LANGS.items()})
+        if parts == ["spell"] and m == "POST":
+            b = self.json_body()
+            return self.send_json({"wrong": spell_check_words(b.get("lang"), list(b.get("words") or []))})
+        if parts == ["spell", "suggest"] and m == "POST":
+            b = self.json_body()
+            w = str(b.get("word") or "")[:60]
+            return self.send_json({"suggestions": speller(b.get("lang")).suggest(w) if w else []})
         if parts == ["projects"] and m == "GET":
             items = []
             for d in sorted(CFG.projects.iterdir(), key=lambda p: p.name.lower()):
@@ -1011,6 +1689,9 @@ class Handler(BaseHTTPRequestHandler):
             proj = project_dir(b.get("name", "").strip(), must_exist=False)
             if proj.exists():
                 raise ApiError(409, "Já existe um projeto com esse nome.")
+            if b.get("git"):
+                git_clone(b["git"], proj, (b.get("branch") or "").strip() or None)
+                return self.send_json({"name": proj.name})
             proj.mkdir(parents=True)
             if b.get("template", True):
                 (proj / "main.tex").write_bytes(TEMPLATE.encode("utf-8"))
@@ -1029,7 +1710,8 @@ class Handler(BaseHTTPRequestHandler):
             s = load_settings(proj)
             main = guess_main(proj, s)
             return self.send_json({"files": list_tree(proj), "settings": s, "main": main,
-                                   "magic": magic_engine(proj / main) if main else None})
+                                   "magic": magic_engine(proj / main) if main else None,
+                                   "spellGuess": guess_spell_lang(proj, main) if main else None})
         if action == "file":
             fp = safe_path(proj, q.get("path"))
             if m in ("GET", "HEAD"):
@@ -1083,6 +1765,11 @@ class Handler(BaseHTTPRequestHandler):
                     if b["main"] else None
             if b.get("engine") in list(ENGINES) + ["auto"]:
                 s["engine"] = b["engine"]
+            if b.get("spellLang") in list(SPELL_LANGS) + ["auto", "off"]:
+                s["spellLang"] = b["spellLang"]
+            if isinstance(b.get("words"), list):
+                s["words"] = sorted({w.strip() for w in b["words"]
+                                     if isinstance(w, str) and 0 < len(w.strip()) <= 60})[:5000]
             if "shellEscape" in b:
                 s["shellEscape"] = bool(b["shellEscape"]) and CFG.allow_shell_escape
             save_settings(proj, s)
@@ -1112,6 +1799,36 @@ class Handler(BaseHTTPRequestHandler):
             b = self.json_body()
             text = (b.get("bibtex") or "").strip() or fetch_doi(b.get("doi"))
             return self.send_json(add_bib_entry(proj, text, b.get("file")))
+        if action == "symbols" and m == "GET":
+            return self.send_json(project_symbols(proj))
+        if action == "git":
+            sub = rest[1] if len(rest) > 1 else ""
+            if sub == "" and m == "GET":
+                return self.send_json(git_status(proj))
+            if m != "POST":
+                raise ApiError(405, "Método não suportado.")
+            b = self.json_body()
+            with LOCKS_GUARD:
+                lock = LOCKS.setdefault("git:" + proj.name, threading.Lock())
+            if not lock.acquire(blocking=False):
+                raise ApiError(409, "Já existe uma operação Git em curso neste projeto.")
+            try:
+                if sub == "init":
+                    git_init(proj, (b.get("url") or "").strip() or None)
+                    res = {}
+                elif sub == "identity":
+                    git_identity(proj, b.get("name"), b.get("email"))
+                    res = {}
+                elif sub == "pull":
+                    res = git_pull(proj)
+                elif sub == "commit":
+                    res = git_commit(proj, b.get("message"), bool(b.get("push")))
+                else:
+                    raise ApiError(404, "Rota desconhecida.")
+            finally:
+                lock.release()
+            res["status"] = git_status(proj)
+            return self.send_json(res)
         if action == "wordcount" and m == "GET":
             main = q.get("path") or guess_main(proj, load_settings(proj))
             if not main:
@@ -1158,7 +1875,9 @@ def main():
     if CFG.fetch_vendor:
         ok = sum(1 for rel in VENDOR if vendor_file(rel, quiet=False))
         print("Bibliotecas disponíveis localmente: %d/%d" % (ok, len(VENDOR)))
-        return 0 if ok == len(VENDOR) else 1
+        dicts = sum(1 for lang in SPELL_LANGS if dict_files(lang))
+        print("Dicionários ortográficos: %d/%d" % (dicts, len(SPELL_LANGS)))
+        return 0 if ok == len(VENDOR) and dicts == len(SPELL_LANGS) else 1
 
     if CFG.host not in ("127.0.0.1", "localhost", "::1") and not CFG.password:
         print("AVISO: a escutar em %s sem --password; qualquer pessoa na rede pode "

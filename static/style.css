@@ -148,3 +148,51 @@ body.dragging iframe, body.dragging #pages { pointer-events: none; }
 .CodeMirror-hint .hint-meta { color: var(--muted); font-family: system-ui, sans-serif; }
 li.CodeMirror-hint-active .hint-meta { color: #e8f1ed; }
 li.CodeMirror-hint-active { background: var(--accent); }
+
+/* autocompletar */
+.CodeMirror-hint.hint-own { font-style: italic; }
+
+/* git */
+#git-badge { font-size: 11px; color: var(--accent); }
+#git-badge.git-dirty { color: var(--warn); }
+dialog { border: 1px solid var(--line); border-radius: 8px; padding: 0; width: min(560px, calc(100vw - 32px));
+  box-shadow: 0 10px 40px rgba(0,0,0,.25); color: var(--ink); background: var(--panel); }
+dialog::backdrop { background: rgba(20,22,18,.35); }
+.dlg-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); background: var(--bg); }
+#git-body, #clone-form > :not(.dlg-head) { margin: 0 14px; }
+#git-body { padding: 10px 0 14px; display: flex; flex-direction: column; gap: 10px; }
+#clone-form { display: flex; flex-direction: column; gap: 10px; padding-bottom: 14px; }
+dialog label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); }
+dialog input, dialog textarea { font: inherit; color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 4px; padding: 5px 8px; width: 100%; }
+dialog textarea { resize: vertical; }
+.dlg-foot { display: flex; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.row2 { display: flex; gap: 6px; flex-wrap: wrap; } .row2 input { flex: 1 1 180px; width: auto; }
+.git-info { display: flex; flex-direction: column; gap: 3px; }
+.git-info code, .git-changes { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+.git-section { display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
+  border-top: 1px solid var(--line); padding-top: 10px; }
+.git-section textarea, .git-section label { align-self: stretch; }
+.git-section .dlg-foot { align-self: stretch; }
+.git-changes { margin: 0; padding-left: 4px; list-style: none; max-height: 180px; overflow: auto; align-self: stretch; }
+.git-state { display: inline-block; min-width: 72px; font-family: system-ui, sans-serif; font-size: 11px; color: var(--muted); }
+.git-state.s-novo { color: var(--accent); } .git-state.s-apagado, .git-state.s-conflito { color: var(--err); }
+.git-msg { margin: 0; padding: 8px; border-radius: 4px; background: var(--bg); white-space: pre-wrap;
+  word-break: break-word; font: 12px/1.4 var(--mono); max-height: 200px; overflow: auto; }
+.git-msg.ok { color: var(--accent); } .git-msg.bad { color: var(--err); background: #fbeae8; }
+.err { color: var(--err); white-space: pre-wrap; margin: 0; font-size: 12px; }
+
+/* ortografia */
+.cm-spell-err { text-decoration: underline wavy #d0342c; text-decoration-skip-ink: none;
+  text-underline-offset: 3px; text-decoration-thickness: 1px; }
+#spell-lang { padding: 1px 4px; font-size: 12px; font-weight: 400; max-width: 230px; }
+#spell-lang.overridden { border-color: var(--accent); color: var(--accent); }
+.ctx-menu { position: fixed; z-index: 60; min-width: 200px; max-width: 320px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 6px 24px rgba(0,0,0,.18); padding: 4px; }
+.ctx-menu .menu-item { display: block; width: 100%; text-align: left; border: 0; background: transparent;
+  padding: 4px 8px; border-radius: 4px; white-space: normal; }
+.ctx-menu .menu-item:hover { background: var(--sel); }
+.ctx-menu .menu-item.sugg { font-weight: 600; }
+.ctx-menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+.ctx-menu .small { padding: 4px 8px; }
+.ctx-menu .menu-foot { border-top: 1px solid var(--line); margin-top: 4px; }

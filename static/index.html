@@ -15,7 +15,9 @@
   <select id="project" title="Projeto"></select>
   <button id="btn-new" title="Novo projeto">+ Novo</button>
   <button id="btn-import" title="Importar projeto (.zip, p. ex. do Overleaf)">Importar .zip</button>
+  <button id="btn-clone" title="Criar um projeto a partir de um repositório Git (GitHub, GitLab…)">Clonar Git</button>
   <button id="btn-export" title="Descarregar o projeto em .zip">Exportar .zip</button>
+  <button id="btn-git" title="Versões: receber e enviar alterações para o Git">Git <span id="git-badge"></span></button>
   <button id="btn-delete" class="quiet" title="Eliminar projeto">Eliminar</button>
   <span class="spacer"></span>
   <label class="field">Motor
@@ -28,6 +30,7 @@
   </label>
   <label class="check" title="Compilar automaticamente após cada gravação"><input type="checkbox" id="auto"> Auto-compilar</label>
   <span id="status" class="status"></span>
+  <select id="lang" title="Idioma da interface" data-no-i18n></select>
   <button id="btn-compile" class="primary" title="Ctrl+Enter">Compilar</button>
 </header>
 
@@ -51,6 +54,7 @@
       <span id="filename">—</span>
       <span class="head-right">
         <span id="savestate" class="muted"></span>
+        <select id="spell-lang" data-no-i18n hidden></select>
         <button id="wordcount" class="quiet" title="Palavras no ficheiro (ou na seleção). Clique para contar o projeto inteiro.">— palavras</button>
       </span>
       <div id="wc-pop" class="popover" hidden></div>
@@ -102,6 +106,29 @@
   </section>
 </main>
 
+<dialog id="git-dlg">
+  <div class="dlg-head"><b>Git</b> <span id="git-sub" class="muted"></span>
+    <span class="spacer"></span><button id="git-close" class="quiet" title="Fechar">✕</button></div>
+  <div id="git-body"></div>
+</dialog>
+
+<dialog id="clone-dlg">
+  <form id="clone-form">
+    <div class="dlg-head"><b>Clonar repositório Git</b></div>
+    <label>Endereço do repositório
+      <input id="clone-url" required placeholder="https://github.com/utilizador/repo.git" spellcheck="false" autocomplete="off"></label>
+    <label>Nome do projeto <input id="clone-name" required spellcheck="false"></label>
+    <label>Ramo (opcional) <input id="clone-branch" placeholder="o ramo principal do repositório" spellcheck="false"></label>
+    <p class="muted small">Repositórios privados usam as credenciais já configuradas na máquina onde corre o LocalTeX
+      (chave SSH ou credential helper), ou um token no endereço: https://TOKEN@github.com/utilizador/repo.git</p>
+    <p id="clone-err" class="err" hidden></p>
+    <div class="dlg-foot"><button type="button" id="clone-cancel">Cancelar</button>
+      <button type="submit" class="primary" id="clone-go">Clonar</button></div>
+  </form>
+</dialog>
+
+<div id="spell-menu" class="ctx-menu" hidden></div>
+
 <input type="file" id="file-upload" multiple hidden>
 <input type="file" id="file-zip" accept=".zip" hidden>
 
@@ -115,6 +142,7 @@
 <script src="/vendor/codemirror/active-line.js"></script>
 <script src="/vendor/codemirror/comment.js"></script>
 <script src="/vendor/codemirror/show-hint.js"></script>
+<script src="/i18n.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

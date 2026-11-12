@@ -25,3 +25,6 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# Dicionários ortográficos (descarregados na primeira utilização)
+dictionaries/
