@@ -222,9 +222,14 @@ O código do LocalTeX está em Git. A pasta `projects/` fica **fora** do reposit
 (ver `.gitignore`): os documentos são seus e não devem ir parar ao histórico da ferramenta.
 Para versionar um documento, faça `git init` dentro da pasta desse projeto.
 
-## Licenças de terceiros
+## Licença
 
-`static/vendor/pdfjs` contém o PDF.js (Mozilla, Apache-2.0). O CodeMirror 5 (MIT) é
-descarregado na primeira utilização. Os dicionários ortográficos, descarregados quando são
+O LocalTeX é distribuído com a [licença MIT](LICENSE): pode usá-lo, alterá-lo e
+redistribuí-lo livremente, desde que mantenha o aviso de copyright.
+
+### Licenças de terceiros
+
+`static/vendor/pdfjs` contém o PDF.js (Mozilla, Apache-2.0) e `static/vendor/codemirror` o
+CodeMirror 5 (MIT); ambos mantêm as licenças originais. Os dicionários ortográficos, descarregados quando são
 precisos, têm licença própria: pt-PT do projeto Natura (GPL/LGPL/MPL), inglês do SCOWL
 (licença MIT/BSD).
