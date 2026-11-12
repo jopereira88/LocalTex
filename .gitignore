@@ -1,0 +1,27 @@
+# Documentos do utilizador (versionar cada projeto à parte, se quiser)
+projects/
+
+# Metadados do Windows ao copiar ficheiros (WSL)
+*:Zone.Identifier
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Distribuições TeX portáteis colocadas ao lado do server.py
+texlive/
+TinyTeX/
+tinytex/
+miktex/
+texmfs/
+tex/
+
+# Downloads parciais das bibliotecas
+static/vendor/**/*.part
+
+# Editores / sistema
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp

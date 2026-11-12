@@ -1,0 +1,12 @@
+services:
+  localtex:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8765:8765"
+    environment:
+      LOCALTEX_PASSWORD: "mude-esta-palavra-passe"
+    volumes:
+      - ./projects:/data
+      # fontes adicionais (opcional): ficam visíveis para fontspec pelo nome
+      # - ./fonts:/usr/local/share/fonts/extra:ro

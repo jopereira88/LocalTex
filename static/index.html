@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LocalTeX</title>
+<link rel="stylesheet" href="/vendor/codemirror/codemirror.css">
+<link rel="stylesheet" href="/vendor/codemirror/dialog.css">
+<link rel="stylesheet" href="/vendor/codemirror/show-hint.css">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header id="bar">
+  <span class="brand">LocalTeX</span>
+  <select id="project" title="Projeto"></select>
+  <button id="btn-new" title="Novo projeto">+ Novo</button>
+  <button id="btn-import" title="Importar projeto (.zip, p. ex. do Overleaf)">Importar .zip</button>
+  <button id="btn-export" title="Descarregar o projeto em .zip">Exportar .zip</button>
+  <button id="btn-delete" class="quiet" title="Eliminar projeto">Eliminar</button>
+  <span class="spacer"></span>
+  <label class="field">Motor
+    <select id="engine">
+      <option value="auto">Auto</option>
+      <option value="lualatex">LuaLaTeX</option>
+      <option value="xelatex">XeLaTeX</option>
+      <option value="pdflatex">pdfLaTeX</option>
+    </select>
+  </label>
+  <label class="check" title="Compilar automaticamente após cada gravação"><input type="checkbox" id="auto"> Auto-compilar</label>
+  <span id="status" class="status"></span>
+  <button id="btn-compile" class="primary" title="Ctrl+Enter">Compilar</button>
+</header>
+
+<main id="app">
+  <aside id="side">
+    <div class="pane-head">
+      <span class="tools">
+        <button id="btn-newfile" title="Novo ficheiro">+ Ficheiro</button>
+        <button id="btn-newdir" title="Nova pasta">+ Pasta</button>
+        <button id="btn-upload" title="Carregar ficheiros (imagens, fontes, .bib…)">Carregar</button>
+      </span>
+    </div>
+    <div id="tree"></div>
+    <div class="side-foot">
+      <button id="btn-clean" class="quiet" title="Apagar ficheiros auxiliares (.aux, .log, …)">Limpar auxiliares</button>
+    </div>
+  </aside>
+
+  <section id="center">
+    <div class="pane-head">
+      <span id="filename">—</span>
+      <span class="head-right">
+        <span id="savestate" class="muted"></span>
+        <button id="wordcount" class="quiet" title="Palavras no ficheiro (ou na seleção). Clique para contar o projeto inteiro.">— palavras</button>
+      </span>
+      <div id="wc-pop" class="popover" hidden></div>
+    </div>
+    <div id="editor"></div>
+    <div id="binary" hidden></div>
+    <div id="bottom">
+      <div class="pane-head tabs">
+        <button id="tab-issues" class="tab on">Problemas <span id="issue-count"></span></button>
+        <button id="tab-log" class="tab">Log</button>
+        <button id="tab-refs" class="tab" title="Bibliografia (.bib) do projeto">Referências <span id="refs-count"></span></button>
+        <span class="spacer"></span>
+        <span class="tools" id="issue-tools">
+          <button id="btn-copy-issues" class="quiet" title="Copiar todos os problemas para a área de transferência">Copiar tudo</button>
+        </span>
+        <span class="tools" id="log-tools" hidden>
+          <button id="btn-copy-log" class="quiet" title="Copiar o log completo">Copiar log</button>
+        </span>
+        <button id="btn-toggle-bottom" class="quiet" title="Mostrar/ocultar">▾</button>
+      </div>
+      <div id="issues" class="bottom-body"></div>
+      <pre id="log" class="bottom-body" hidden></pre>
+      <div id="refs" class="bottom-body" hidden>
+        <div class="refs-bar">
+          <input id="refs-search" type="search" placeholder="Procurar por chave, autor, título, ano…" spellcheck="false">
+          <textarea id="refs-add" rows="1" placeholder="DOI (10.xxxx/…) ou entrada BibTeX colada" spellcheck="false"></textarea>
+          <button id="btn-refs-add" title="Obter a referência e acrescentá-la ao .bib">Adicionar</button>
+        </div>
+        <div id="refs-alerts"></div>
+        <div id="refs-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <div id="split" title="Arrastar para redimensionar"></div>
+
+  <section id="preview">
+    <div class="pane-head">
+      <span>PDF</span>
+      <span class="tools">
+        <button id="zoom-out" title="Reduzir">−</button>
+        <button id="zoom-fit" title="Ajustar à largura">Largura</button>
+        <button id="zoom-in" title="Ampliar">+</button>
+        <a id="pdf-download" class="btn" hidden>Descarregar</a>
+      </span>
+    </div>
+    <div id="pages"><p class="empty">Compile para ver o PDF.</p></div>
+    <iframe id="pdf-frame" hidden title="PDF"></iframe>
+  </section>
+</main>
+
+<input type="file" id="file-upload" multiple hidden>
+<input type="file" id="file-zip" accept=".zip" hidden>
+
+<script src="/vendor/codemirror/codemirror.js"></script>
+<script src="/vendor/codemirror/stex.js"></script>
+<script src="/vendor/codemirror/matchbrackets.js"></script>
+<script src="/vendor/codemirror/closebrackets.js"></script>
+<script src="/vendor/codemirror/searchcursor.js"></script>
+<script src="/vendor/codemirror/dialog.js"></script>
+<script src="/vendor/codemirror/search.js"></script>
+<script src="/vendor/codemirror/active-line.js"></script>
+<script src="/vendor/codemirror/comment.js"></script>
+<script src="/vendor/codemirror/show-hint.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
