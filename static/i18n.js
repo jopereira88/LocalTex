@@ -30,6 +30,10 @@ const EN = {
   'Auto-compilar': 'Auto-compile',
   'Compilar': 'Compile',
   'Idioma da interface': 'Interface language',
+  'Aspeto: tema claro ou escuro (o PDF não muda)': 'Appearance: light or dark theme (the PDF is not changed)',
+  'Claro': 'Light',
+  'Escuro': 'Dark',
+  'Escuro + editor escuro': 'Dark + dark editor',
 
   // painel lateral
   'Novo ficheiro': 'New file',

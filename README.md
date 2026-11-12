@@ -190,6 +190,17 @@ the «Compile» button at any time; the choice is remembered in the browser. You
 `{texto em português: tradução}` a `DICTS` e o nome a `LANGS`; para as mensagens do servidor,
 um dicionário semelhante em `TRANSLATIONS` no `server.py`. O que faltar aparece em português.
 
+## Tema escuro
+
+No menu de aspeto (ao lado do idioma) há três opções:
+
+- **Claro** — o aspeto habitual;
+- **Escuro** — interface escura, mas o editor do LaTeX continua claro;
+- **Escuro + editor escuro** — tudo escuro, incluindo o código.
+
+O PDF nunca é alterado: aparece sempre como vai ser impresso. A escolha fica guardada no
+browser; na primeira visita segue a preferência do sistema operativo.
+
 ## Quando um projeto do Overleaf não compila
 
 As causas habituais, por ordem de frequência:

@@ -1267,6 +1267,25 @@ function wire() {
   });
 }
 
+/* ------------------------------------------------------------------ tema */
+// Claro, escuro (editor LaTeX continua claro) ou escuro com o editor tambem escuro.
+// O index.html ja aplicou a escolha guardada antes de desenhar; aqui so se liga o menu.
+function applyTheme(v) {
+  const r = document.documentElement;
+  r.dataset.theme = v === 'light' ? 'light' : 'dark';
+  r.dataset.editor = v === 'dark-editor' ? 'dark' : 'light';
+}
+function setupTheme() {
+  const sel = $('theme');
+  const r = document.documentElement;
+  sel.value = r.dataset.theme === 'light' ? 'light' : (r.dataset.editor === 'dark' ? 'dark-editor' : 'dark');
+  sel.onchange = () => {
+    applyTheme(sel.value);
+    store.set('localtex.theme', sel.value);
+    if (Ed.cm) Ed.cm.refresh();
+  };
+}
+
 /* ------------------------------------------------------------------ idioma */
 function markMissingEngines() {
   for (const o of $('engine').options) {
@@ -1301,6 +1320,7 @@ function setupLanguage() {
 
 async function init() {
   setupLanguage();
+  setupTheme();
   Ed.init();
   wire();
   selectTab('issues');

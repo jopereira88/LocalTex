@@ -8,6 +8,16 @@
 <link rel="stylesheet" href="/vendor/codemirror/dialog.css">
 <link rel="stylesheet" href="/vendor/codemirror/show-hint.css">
 <link rel="stylesheet" href="/style.css">
+<script>
+/* aplica o tema antes de desenhar a pagina (evita um clarao branco) */
+(function () {
+  var v; try { v = localStorage.getItem('localtex.theme'); } catch (e) { /* indisponivel */ }
+  if (!v) v = (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark-editor' : 'light';
+  var r = document.documentElement;
+  r.dataset.theme = v === 'light' ? 'light' : 'dark';
+  r.dataset.editor = v === 'dark-editor' ? 'dark' : 'light';
+})();
+</script>
 </head>
 <body>
 <header id="bar">
@@ -30,6 +40,11 @@
   </label>
   <label class="check" title="Compilar automaticamente após cada gravação"><input type="checkbox" id="auto"> Auto-compilar</label>
   <span id="status" class="status"></span>
+  <select id="theme" title="Aspeto: tema claro ou escuro (o PDF não muda)">
+    <option value="light">Claro</option>
+    <option value="dark">Escuro</option>
+    <option value="dark-editor">Escuro + editor escuro</option>
+  </select>
   <select id="lang" title="Idioma da interface" data-no-i18n></select>
   <button id="btn-compile" class="primary" title="Ctrl+Enter">Compilar</button>
 </header>

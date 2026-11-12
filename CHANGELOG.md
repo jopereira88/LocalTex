@@ -3,6 +3,14 @@
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e a numeração
 segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [Por lançar]
+
+### Adicionado
+- Tema escuro, no menu de aspeto da barra de cima: «Claro», «Escuro» (interface escura com o
+  editor do LaTeX claro) e «Escuro + editor escuro». O PDF não é alterado. A escolha fica
+  guardada no browser; na primeira visita segue `prefers-color-scheme` do sistema. É aplicado
+  antes de a página ser desenhada, sem clarão branco ao abrir.
+
 ## [1.2.0] - 2026-11-12
 
 ### Adicionado
