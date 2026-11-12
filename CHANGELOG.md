@@ -3,7 +3,7 @@
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e a numeração
 segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [Por lançar]
+## [1.2.1] - 2026-11-12
 
 ### Adicionado
 - Tema escuro, no menu de aspeto da barra de cima: «Claro», «Escuro» (interface escura com o

@@ -226,7 +226,7 @@ editor.
 
 ## Versões
 
-A versão atual é a **1.2.0** (`python server.py --version`). As alterações de cada versão
+A versão atual é a **1.2.1** (`python server.py --version`). As alterações de cada versão
 estão em [CHANGELOG.md](CHANGELOG.md).
 
 O código do LocalTeX está em Git. A pasta `projects/` fica **fora** do repositório
