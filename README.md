@@ -180,6 +180,9 @@ Cada projeto pode ser um repositório Git independente. Precisa do `git` instala
 onde corre o LocalTeX (a imagem Docker já o traz).
 
 - **Clonar Git** (barra de cima): cola o endereço do repositório e escolhe o nome do projeto.
+  O diálogo verifica como esta máquina chega ao servidor e diz que endereço usar: o **SSH**
+  (`git@github.com:utilizador/repo.git`) se houver uma chave SSH aceite, ou o **HTTPS** se houver
+  um *credential helper*. Se colar um endereço do tipo errado, oferece a conversão num clique.
 - **Git** (barra de cima): ativa o Git num projeto existente e liga-o a um repositório remoto
   (crie-o vazio no site primeiro); mostra os ficheiros alterados; **Receber alterações**
   (`git pull --rebase`, mantendo as suas alterações por guardar); **Guardar versão**

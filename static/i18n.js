@@ -214,8 +214,23 @@ const EN = {
   'Nome do projeto': 'Project name',
   'Ramo (opcional)': 'Branch (optional)',
   'o ramo principal do repositório': "the repository's default branch",
-  'Repositórios privados usam as credenciais já configuradas na máquina onde corre o LocalTeX (chave SSH ou credential helper), ou um token no endereço: https://TOKEN@github.com/utilizador/repo.git':
-    'Private repositories use the credentials already set up on the machine running LocalTeX (SSH key or credential helper), or a token in the address: https://TOKEN@github.com/user/repo.git',
+  'utilizador/repo.git': 'user/repo.git',
+  'A verificar como esta máquina acede a {h}…': 'Checking how this machine reaches {h}…',
+  'Esta máquina acede a {h} por SSH (como {u}).': 'This machine reaches {h} over SSH (as {u}).',
+  'Esta máquina acede a {h} por SSH.': 'This machine reaches {h} over SSH.',
+  'Use o endereço SSH, do botão «Code → SSH»:': 'Use the SSH address, from the «Code → SSH» button:',
+  'Esta máquina tem credenciais HTTPS para {h} ({c}). Use o endereço HTTPS:':
+    'This machine has HTTPS credentials for {h} ({c}). Use the HTTPS address:',
+  'Esta máquina não tem acesso configurado a {h}: só funcionam repositórios públicos (endereço HTTPS). Para um repositório privado, configure uma chave SSH nesta máquina ou ponha um token no endereço:':
+    'This machine has no access set up for {h}: only public repositories work (HTTPS address). For a private repository, set up an SSH key on this machine or put a token in the address:',
+  'A chave SSH de {h} ainda não é conhecida: corra uma vez, num terminal, {c} e aceite-a.':
+    "{h}'s SSH host key is not known yet: run {c} once in a terminal and accept it.",
+  'Este endereço é HTTPS, mas esta máquina tem acesso por SSH.': 'This address is HTTPS, but this machine has SSH access.',
+  'O SSH não funciona nesta máquina para {h}.': "SSH doesn't work from this machine for {h}.",
+  'Usar {u}': 'Use {u}',
+  'Não foi possível ligar a {h} por SSH (sem rede ou porta 22 bloqueada).': 'Could not connect to {h} over SSH (no network or port 22 blocked).',
+  'O GitHub também aceita SSH pela porta 443: ver «Using SSH over the HTTPS port» na documentação do GitHub.':
+    'GitHub also accepts SSH on port 443: see «Using SSH over the HTTPS port» in the GitHub docs.',
   'Cancelar': 'Cancel',
   'Clonar': 'Clone',
   'A clonar…': 'Cloning…',

@@ -13,6 +13,7 @@ import mimetypes
 import os
 import re
 import shutil
+import shlex
 import signal
 import subprocess
 import sys
@@ -146,6 +147,9 @@ MESSAGES_EN = {
     "Endereço Git inválido (use https://… ou git@servidor:utilizador/repo.git).":
         "Invalid Git address (use https://… or git@server:user/repo.git).",
     "Nome de ramo inválido.": "Invalid branch name.",
+    "Servidor inválido.": "Invalid server.",
+    "Esta máquina acede a %s por SSH: use o endereço SSH, %s":
+        "This machine reaches %s over SSH: use the SSH address, %s",
     "Indique um nome e um e-mail válidos.": "Enter a valid name and e-mail.",
     "Este projeto não tem repositório remoto (origin).": "This project has no remote repository (origin).",
     "O remoto ainda não tem o ramo «%s»; nada para receber.":
@@ -1003,6 +1007,65 @@ def check_git_url(url):
     return url
 
 
+# Metodo de acesso que funciona nesta maquina para um servidor Git: SSH (testado com
+# "ssh -T", como o git o faria) e/ou HTTPS com um credential helper. O dialogo «Clonar Git»
+# usa-o para mostrar que endereco usar. Sucessos ficam em cache 2 min, falhas 15 s.
+HOST_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.\-]{0,252}$")
+SSH_OK_RE = re.compile(r"\bHi (?:there, )?([^!\s]+)!|Welcome to GitLab, @([^!\s]+)!"
+                       r"|logged in as ([^.\s]+)|successfully authenticated|authenticated via", re.I)
+ACCESS_CACHE = {}
+
+
+def git_access(host, user="git"):
+    if not HOST_RE.match(host or "") or not re.match(r"^[\w.\-]{1,64}$", user or ""):
+        raise ApiError(400, "Servidor inválido.")
+    key = (host.lower(), user)
+    hit = ACCESS_CACHE.get(key)
+    if hit and time.time() - hit[0] < (120 if hit[1]["ssh"] or hit[1]["https"] else 15):
+        return hit[1]
+    res = {"host": host, "ssh": False, "sshUser": None, "sshProblem": None, "https": None}
+    if shutil.which("git"):
+        rc, out = git(CFG.projects, "config", "--get-urlmatch", "credential.helper",
+                      "https://" + host, check=False, timeout=10)
+        if rc == 0 and out.strip():
+            res["https"] = out.strip().splitlines()[-1]
+    env = git_env()
+    try:
+        cmd = shlex.split(env["GIT_SSH_COMMAND"], posix=os.name != "nt")
+        if not cmd or not shutil.which(cmd[0]):
+            raise OSError
+        cmd += ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "-T", "--", user + "@" + host]
+        p = subprocess.run(cmd, env=env, stdin=subprocess.DEVNULL, capture_output=True, timeout=15)
+        out = (p.stdout + p.stderr).decode("utf-8", "replace")
+        low = out.lower()
+        m = SSH_OK_RE.search(out)
+        if m and "permission denied" not in low:
+            res["ssh"] = True
+            res["sshUser"] = next((g for g in m.groups() if g), None)
+        elif "host key verification failed" in low:
+            res["sshProblem"] = "hostkey"
+        elif "permission denied" in low:
+            res["sshProblem"] = "denied"
+        else:
+            res["sshProblem"] = "network"
+    except subprocess.TimeoutExpired:
+        res["sshProblem"] = "network"
+    except (OSError, ValueError):
+        res["sshProblem"] = "nossh"
+    ACCESS_CACHE[key] = (time.time(), res)
+    return res
+
+
+def https_to_ssh(url):
+    """https://servidor/utilizador/repo(.git) -> (servidor, git@servidor:utilizador/repo.git);
+    None se o endereco nao for HTTPS simples (p. ex. ja traz um token)."""
+    m = re.match(r"^https?://([\w.\-]+)(?::\d+)?/(.+?)/?$", url or "")
+    if not m:
+        return None
+    path = re.sub(r"\.git$", "", re.sub(r"/(?:-/)?(?:tree|blob)/.*$", "", m.group(2)))
+    return m.group(1), "git@%s:%s.git" % (m.group(1), path)
+
+
 def git_prepare(proj):
     """Exclui os auxiliares do LaTeX e o PDF do documento principal via .git/info/exclude
     (nao mexe no .gitignore do repositorio; ficheiros ja seguidos pelo git nao sao afetados,
@@ -1040,6 +1103,13 @@ def git_clone(url, proj, branch=None):
         args += ["--branch", branch]
     try:
         git(CFG.projects, *args, "--", url, proj.name, timeout=600)
+    except ApiError as e:
+        shutil.rmtree(proj, ignore_errors=True)
+        alt = https_to_ssh(url) if "Sem credenciais" in e.message else None
+        if alt and git_access(alt[0])["ssh"]:
+            raise ApiError(e.status, e.message + "\n\nEsta máquina acede a %s por SSH: use o "
+                           "endereço SSH, %s" % alt)
+        raise
     except Exception:
         shutil.rmtree(proj, ignore_errors=True)
         raise
@@ -1658,6 +1728,9 @@ class Handler(BaseHTTPRequestHandler):
                 "projectsDir": str(CFG.projects), "git": bool(shutil.which("git")),
             "version": __version__,
             })
+        if parts == ["git", "access"] and m == "GET":
+            return self.send_json(git_access((q.get("host") or "github.com").strip(),
+                                             (q.get("user") or "git").strip()))
         if parts == ["spell"] and m == "GET":
             return self.send_json({k: v[0] for k, v in SPELL_LANGS.items()})
         if parts == ["spell"] and m == "POST":

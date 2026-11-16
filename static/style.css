@@ -224,6 +224,13 @@ dialog textarea { resize: vertical; }
   word-break: break-word; font: 12px/1.4 var(--mono); max-height: 200px; overflow: auto; }
 .git-msg.ok { color: var(--accent); } .git-msg.bad { color: var(--err); background: var(--err-bg); }
 .err { color: var(--err); white-space: pre-wrap; margin: 0; font-size: 12px; }
+.clone-access { margin: -4px 0 0; padding: 6px 8px; border-radius: 4px; background: var(--bg);
+  color: var(--muted); font-size: 12px; line-height: 1.45; }
+.clone-access.ok { color: var(--accent); } .clone-access.warn { background: var(--warn-bg); color: var(--warn); }
+.clone-access code, .clone-fix button { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+.clone-fix:not([hidden]) { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -4px 0 0;
+  padding: 6px 8px; border-radius: 4px; background: var(--warn-bg); color: var(--warn); font-size: 12px; }
+.clone-fix button { text-align: left; }
 
 /* ortografia */
 .cm-spell-err { text-decoration: underline wavy var(--ed-spell); text-decoration-skip-ink: none;

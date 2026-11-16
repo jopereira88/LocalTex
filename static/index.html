@@ -132,10 +132,10 @@
     <div class="dlg-head"><b>Clonar repositório Git</b></div>
     <label>Endereço do repositório
       <input id="clone-url" required placeholder="https://github.com/utilizador/repo.git" spellcheck="false" autocomplete="off"></label>
+    <p id="clone-access" class="clone-access" data-no-i18n hidden></p>
+    <p id="clone-fix" class="clone-fix" data-no-i18n hidden><span></span> <button type="button"></button></p>
     <label>Nome do projeto <input id="clone-name" required spellcheck="false"></label>
     <label>Ramo (opcional) <input id="clone-branch" placeholder="o ramo principal do repositório" spellcheck="false"></label>
-    <p class="muted small">Repositórios privados usam as credenciais já configuradas na máquina onde corre o LocalTeX
-      (chave SSH ou credential helper), ou um token no endereço: https://TOKEN@github.com/utilizador/repo.git</p>
     <p id="clone-err" class="err" hidden></p>
     <div class="dlg-foot"><button type="button" id="clone-cancel">Cancelar</button>
       <button type="submit" class="primary" id="clone-go">Clonar</button></div>

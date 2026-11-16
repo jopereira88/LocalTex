@@ -1033,12 +1033,84 @@ const Git = {
   },
 };
 const Clone = {
+  access: {},  // servidor -> Promise da resposta de /api/git/access
+  timer: 0,
   open() {
     $('clone-err').hidden = true;
     $('clone-url').value = ''; $('clone-name').value = ''; $('clone-branch').value = '';
     delete $('clone-name').dataset.touched;
+    this.access = {};
     $('clone-dlg').showModal();
     $('clone-url').focus();
+    this.check();
+  },
+  // Endereco Git -> { scheme: 'https'|'token'|'ssh', host, user, path } (path sem .git)
+  parse(u) {
+    let m = u.match(/^https?:\/\/([^@\/\s]+@)?([\w.\-]+)(?::\d+)?\/(.+?)\/?$/);
+    if (m) return { scheme: m[1] ? 'token' : 'https', host: m[2], user: 'git', path: m[3] };
+    m = u.match(/^ssh:\/\/(?:([\w.\-]+)@)?([\w.\-]+)(?::\d+)?\/(.+)$/);
+    if (m && m[3]) return { scheme: 'ssh', host: m[2], user: m[1] || 'git', path: m[3] };
+    m = u.match(/^([\w.\-]+)@([\w.\-]+):(?!\/)(.+)$/);
+    if (m) return { scheme: 'ssh', host: m[2], user: m[1], path: m[3] };
+    return null;
+  },
+  repoPath: p => p.path.replace(/\/(?:-\/)?(?:tree|blob)\/.*$/, '').replace(/\.git$/, '').replace(/^\//, ''),
+  sshUrl(p) { return `git@${p.host}:${this.repoPath(p)}.git`; },
+  httpsUrl(p) { return `https://${p.host}/${this.repoPath(p)}.git`; },
+  schedule() { clearTimeout(this.timer); this.timer = setTimeout(() => this.check(), 350); },
+  async check() {
+    const url = $('clone-url').value.trim(), p = this.parse(url);
+    if (url && !p) { this.render(null, null, null); return; }
+    const host = p ? p.host : 'github.com', user = p ? p.user : 'git', key = user + '@' + host;
+    if (!this.access[key]) {
+      this.render('wait', host, p);
+      this.access[key] = api('GET', `/api/git/access?host=${encodeURIComponent(host)}&user=${encodeURIComponent(user)}`)
+        .catch(() => { delete this.access[key]; return null; });
+    }
+    const a = await this.access[key];
+    if ($('clone-url').value.trim() === url) this.render(a, host, p);
+  },
+  // Mostra como esta maquina chega ao servidor e, se o endereco escrito nao usar esse
+  // metodo, oferece a conversao (HTTPS <-> SSH) num clique.
+  render(a, host, p) {
+    const box = $('clone-access'), fix = $('clone-fix');
+    const ex = 'utilizador/repo.git';
+    box.hidden = !a; fix.hidden = true; box.className = 'clone-access';
+    $('clone-url').placeholder = `https://${host || 'github.com'}/${t(ex)}`;
+    if (!a) return;
+    const say = (cls, html) => { if (cls) box.classList.add(cls); box.innerHTML = html; };
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const code = s => `<code>${esc(s)}</code>`;
+    if (a === 'wait') { say('', esc(t('A verificar como esta máquina acede a {h}…', { h: host }))); return; }
+    if (a.ssh) {
+      const ssh = `git@${host}:${t(ex)}`;
+      $('clone-url').placeholder = ssh;
+      say('ok', '✓ ' + esc(a.sshUser ? t('Esta máquina acede a {h} por SSH (como {u}).', { h: host, u: a.sshUser })
+        : t('Esta máquina acede a {h} por SSH.', { h: host })) + ' ' +
+        esc(t('Use o endereço SSH, do botão «Code → SSH»:')).replace('«Code → SSH»', '<b>Code → SSH</b>') + ' ' + code(ssh));
+    } else if (a.https) {
+      say('ok', '✓ ' + esc(t('Esta máquina tem credenciais HTTPS para {h} ({c}). Use o endereço HTTPS:', { h: host, c: a.https })) +
+        ' ' + code(`https://${host}/${t(ex)}`));
+    } else {
+      let msg = esc(t('Esta máquina não tem acesso configurado a {h}: só funcionam repositórios públicos (endereço HTTPS). Para um repositório privado, configure uma chave SSH nesta máquina ou ponha um token no endereço:', { h: host })) +
+        ' ' + code(`https://TOKEN@${host}/${t(ex)}`);
+      if (a.sshProblem === 'network')
+        msg += '<br>' + esc(t('Não foi possível ligar a {h} por SSH (sem rede ou porta 22 bloqueada).', { h: host })) +
+          (host === 'github.com' ? ' ' + esc(t('O GitHub também aceita SSH pela porta 443: ver «Using SSH over the HTTPS port» na documentação do GitHub.')) : '');
+      if (a.sshProblem === 'hostkey')
+        msg += '<br>' + esc(t('A chave SSH de {h} ainda não é conhecida: corra uma vez, num terminal, {c} e aceite-a.', { h: host, c: '§' })).replace('§', code(`ssh -T git@${host}`));
+      say('warn', msg);
+    }
+    if (!p) return;
+    let to = null, why = '';
+    if (p.scheme === 'https' && a.ssh && !a.https) { to = this.sshUrl(p); why = t('Este endereço é HTTPS, mas esta máquina tem acesso por SSH.'); }
+    else if (p.scheme === 'ssh' && !a.ssh && a.sshProblem === 'denied') { to = this.httpsUrl(p); why = t('O SSH não funciona nesta máquina para {h}.', { h: host }); }
+    if (!to) return;
+    fix.firstChild.textContent = why;
+    const b = fix.querySelector('button');
+    b.textContent = t('Usar {u}', { u: to });
+    b.onclick = () => { $('clone-url').value = to; $('clone-url').dispatchEvent(new Event('input')); $('clone-url').focus(); };
+    fix.hidden = false;
   },
   async submit(ev) {
     ev.preventDefault();
@@ -1159,6 +1231,7 @@ function wire() {
   $('clone-url').addEventListener('input', () => {
     const m = $('clone-url').value.trim().match(/([^/:]+?)(?:\.git)?\/?$/);
     if (m && !$('clone-name').dataset.touched) $('clone-name').value = m[1].replace(/[^\w .()\-]/g, ' ').trim();
+    Clone.schedule();
   });
   $('clone-name').addEventListener('input', () => { $('clone-name').dataset.touched = '1'; });
   $('btn-git').onclick = () => Git.open();
@@ -1310,6 +1383,7 @@ function setupLanguage() {
     markMissingEngines();
     if (!$('btn-refs-add').disabled) $('btn-refs-add').textContent = t('Adicionar');
     if (!$('clone-go').disabled) $('clone-go').textContent = t('Clonar');
+    if ($('clone-dlg').open) Clone.check();
     if (!Pdf.doc && !Pdf.path) Pdf.clear();
     if (!S.project) closeProject();
     if (S.dirty) setSaveState(t('por guardar')); else setSaveState('');
