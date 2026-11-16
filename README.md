@@ -254,13 +254,45 @@ No menu de aspeto (ao lado do idioma) há três opções:
 O PDF nunca é alterado: aparece sempre como vai ser impresso. A escolha fica guardada no
 browser; na primeira visita segue a preferência do sistema operativo.
 
+## Fontes Microsoft
+
+Times New Roman, Arial (normal, negrito, itálico, Arial Black e Arial Narrow), Calibri,
+Helvetica e Comic Sans MS funcionam com `\setmainfont{…}` / `\newfontfamily` sem configurar
+nada. O `fonts.sh` trata disso e corre sozinho: no fim do `install-tex.sh`, ao construir a
+imagem Docker, e em segundo plano sempre que o `server.py` arranca (Linux/WSL). Quando já
+está tudo instalado não altera nada.
+
+| Fonte | WSL | Linux |
+|---|---|---|
+| Times New Roman, Arial, Arial Black, Comic Sans MS | as do Windows (`C:\Windows\Fonts`), sem copiar | descarregadas das *Core fonts for the web* da Microsoft (SHA-256 verificado), em `~/.local/share/fonts/ms-core` |
+| Calibri | a do Windows | substituta: Carlito (mesmas métricas) |
+| Arial Narrow | a do Windows, se o Office a instalou | substituta: TeX Gyre Heros Cn |
+| Helvetica | substituta: TeX Gyre Heros (o Windows também não a tem) | substituta: TeX Gyre Heros |
+
+As substitutas são ficheiros `<Nome>.fontspec` em `~/texmf/tex/latex/localtex-fonts/`, que o
+fontspec lê ao pedir esse nome. Têm as mesmas larguras de letra, por isso a paginação não muda.
+São apagadas automaticamente quando a fonte verdadeira aparece. As *Core fonts* estão sob a
+[licença da Microsoft](https://corefonts.sourceforge.net/eula.htm).
+
+```sh
+./fonts.sh --check     # mostra de onde vem cada fonte
+./fonts.sh             # instala o que falta (pode pedir sudo para instalar o cabextract)
+```
+
+**Fontes suas:** ponha os `.ttf`/`.otf` na pasta `fonts/` do LocalTeX (por exemplo os
+ficheiros da Arial Narrow, `ARIALN*.TTF`). São registadas no arranque seguinte, ou logo com
+`./fonts.sh`, e substituem a substituta correspondente. Os ficheiros não vão para o Git.
+
+Para desligar a verificação no arranque: `./start.sh --no-font-setup`.
+
 ## Quando um projeto do Overleaf não compila
 
 As causas habituais, por ordem de frequência:
 
 1. **Fontes.** `\setmainfont{Nome}` só funciona se a fonte estiver instalada na máquina que
-   compila. O Overleaf tem centenas; o seu servidor não. Ou instala as fontes, ou põe os
-   ficheiros `.otf/.ttf` numa pasta do projeto e usa
+   compila. O Overleaf tem centenas; o seu servidor não. As fontes Microsoft mais pedidas são
+   tratadas automaticamente (ver [Fontes Microsoft](#fontes-microsoft)). Para outras, ou
+   instala as fontes, ou põe os ficheiros `.otf/.ttf` numa pasta do projeto e usa
    `\setmainfont{Ficheiro.otf}[Path=fonts/]`. A primeira compilação com LuaLaTeX numa máquina
    nova é lenta (constrói a cache de fontes).
 2. **Pacotes em falta.** Acontece com TinyTeX ou esquemas reduzidos do TeX Live. O erro diz

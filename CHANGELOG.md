@@ -3,6 +3,21 @@
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e a numeração
 segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [Por lançar]
+
+### Adicionado
+- Fontes Microsoft automáticas para o fontspec: Times New Roman, Arial (todas as variantes,
+  incluindo Black e Narrow), Calibri, Helvetica e Comic Sans MS. Novo `fonts.sh`: no WSL
+  expõe as fontes do Windows ao fontconfig/luaotfload; em Linux puro descarrega as *Core fonts
+  for the web* (SHA-256 fixados, os mesmos do Debian) e cria aliases `.fontspec` para métricas
+  equivalentes do TeX Live (Calibri → Carlito, Helvetica → TeX Gyre Heros, Arial Narrow →
+  TeX Gyre Heros Cn), removidos quando a fonte real existe. Corre no fim do `install-tex.sh`,
+  no `Dockerfile` e em segundo plano no arranque do `server.py`; opções `--setup-fonts` e
+  `--no-font-setup`.
+- Pasta `fonts/` para fontes adicionadas à mão (por exemplo a Arial Narrow): registada no
+  fontconfig/luaotfload pelo `fonts.sh`, com as caches refeitas só quando o conteúdo muda.
+  Uma fonte lá posta substitui o alias correspondente. Os ficheiros ficam fora do Git.
+
 ## [1.2.1] - 2026-11-12
 
 ### Adicionado

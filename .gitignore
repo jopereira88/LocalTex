@@ -28,3 +28,7 @@ Thumbs.db
 
 # Dicionários ortográficos (descarregados na primeira utilização)
 dictionaries/
+
+# Fontes adicionadas à mão (licenças próprias): só o README é versionado
+fonts/*
+!fonts/README.md

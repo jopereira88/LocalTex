@@ -261,6 +261,37 @@ def which(name):
     return shutil.which(name, path=tex_env()["PATH"])
 
 
+# --------------------------------------------------------------------- fonts
+
+FONTS_SCRIPT = ROOT / "fonts.sh"
+
+
+def font_setup(foreground=False):
+    """Linux/WSL: corre o fonts.sh (Times New Roman, Arial, Calibri, Helvetica, Comic Sans).
+
+    No arranque corre em segundo plano, sem sudo: no WSL expõe as fontes do Windows, em Linux
+    puro descarrega as Microsoft core fonts e cria os aliases. Quando já está tudo instalado
+    não altera nada (menos de 1 s)."""
+    if not sys.platform.startswith("linux") or not FONTS_SCRIPT.exists() or not shutil.which("bash"):
+        return 0
+    cmd = ["bash", str(FONTS_SCRIPT)] + ([] if foreground else ["--no-sudo", "--quiet"])
+    if foreground:
+        return subprocess.call(cmd, env=tex_env())
+
+    def run():
+        try:
+            p = subprocess.run(cmd, env=tex_env(), stdout=subprocess.PIPE,
+                               stderr=subprocess.STDOUT, text=True, timeout=1800)
+            out = re.sub(r"\x1b\[[0-9;]*m", "", p.stdout).strip()
+        except (OSError, subprocess.SubprocessError) as e:
+            out = "fonts.sh: %s" % e
+        if out:
+            print("[fontes] " + out.replace("\n", "\n[fontes] "), flush=True)
+
+    threading.Thread(target=run, name="font-setup", daemon=True).start()
+    return 0
+
+
 # ------------------------------------------------------------------ projects
 
 NAME_RE = re.compile(r"^[^\W_][\w .\-()]{0,79}$", re.UNICODE)
@@ -1936,6 +1967,11 @@ def main():
                     help="não tentar descarregar as bibliotecas do editor")
     ap.add_argument("--fetch-vendor", action="store_true",
                     help="descarrega as bibliotecas do editor para uso offline e sai")
+    ap.add_argument("--setup-fonts", action="store_true",
+                    help="instala/expõe as fontes Microsoft (Times New Roman, Arial, Calibri, "
+                         "Helvetica, Comic Sans) e sai; Linux/WSL")
+    ap.add_argument("--no-font-setup", action="store_true",
+                    help="não verificar as fontes Microsoft no arranque")
     ap.add_argument("--no-browser", action="store_true")
     ap.add_argument("--verbose", action="store_true")
     ap.add_argument("--version", action="version", version="LocalTeX " + __version__)
@@ -1952,6 +1988,9 @@ def main():
         print("Dicionários ortográficos: %d/%d" % (dicts, len(SPELL_LANGS)))
         return 0 if ok == len(VENDOR) and dicts == len(SPELL_LANGS) else 1
 
+    if CFG.setup_fonts:
+        return font_setup(foreground=True)
+
     if CFG.host not in ("127.0.0.1", "localhost", "::1") and not CFG.password:
         print("AVISO: a escutar em %s sem --password; qualquer pessoa na rede pode "
               "ler e alterar os projetos." % CFG.host)
@@ -1967,6 +2006,8 @@ def main():
         print("  %-9s %s" % (e, which(e) or "NÃO ENCONTRADO"))
     print("  latexmk   %s" % (which("latexmk") or "não encontrado (uso sequência interna)"))
     print("Ctrl+C para terminar.")
+    if not CFG.no_font_setup:
+        font_setup()
     if not CFG.no_browser and CFG.host in ("127.0.0.1", "localhost"):
         threading.Timer(0.6, lambda: webbrowser.open(url)).start()
     try:

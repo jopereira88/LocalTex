@@ -6,6 +6,9 @@
 #   ./install-tex.sh --apt              # Ubuntu/Debian packages instead (needs sudo, older TeX Live)
 #   ./install-tex.sh --prefix /opt/texlive --mirror https://ftp.example.org/CTAN
 #
+# Both modes finish by running ./fonts.sh: Times New Roman, Arial, Calibri, Helvetica and
+# Comic Sans MS for fontspec (Windows fonts exposed on WSL, Microsoft core fonts on Linux).
+#
 # Upstream mode installs as the current user (no sudo for TeX itself) and adds
 # <prefix>/bin/<arch> to ~/.profile and ~/.bashrc. Safe to re-run: an existing
 # install is updated with tlmgr and the missing packages are added.
@@ -20,15 +23,20 @@ WITH_DOCS=0
 # Packages LocalTeX relies on (engines, latexmk, bibliographies, word count, languages).
 EXTRA_PKGS=(collection-luatex collection-xetex collection-latexextra collection-bibtexextra
             collection-fontsrecommended collection-mathscience collection-langportuguese
-            collection-langenglish latexmk biber texcount synctex)
+            collection-langenglish latexmk biber texcount synctex carlito tex-gyre)
 
 APT_PKGS=(texlive-latex-extra texlive-luatex texlive-xetex texlive-fonts-recommended
           texlive-fonts-extra texlive-bibtex-extra texlive-science texlive-extra-utils
           texlive-lang-portuguese texlive-lang-english biber latexmk fontconfig)
 
-usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 log()   { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 die()   { printf '\033[1;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
+HERE="$(cd "$(dirname "$0")" && pwd)"
+setup_fonts() {
+    log "Setting up Microsoft fonts (Times New Roman, Arial, Calibri, Helvetica, Comic Sans MS)"
+    bash "$HERE/fonts.sh" || log "Some fonts are still missing; see above (re-run ./fonts.sh later)"
+}
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -53,6 +61,7 @@ if [ "$MODE" = apt ]; then
     sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${APT_PKGS[@]}"
     log "Done. Binaries are in /usr/bin (already on the PATH)."
     lualatex --version | head -1
+    setup_fonts
     exit 0
 fi
 
@@ -160,6 +169,8 @@ EOF
     log "Refreshing the font cache"
     fc-cache -f >/dev/null 2>&1 || true
 fi
+
+setup_fonts
 
 # ---------------------------------------------------------------- check
 log "Checking the tools LocalTeX uses"
