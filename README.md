@@ -42,6 +42,9 @@ de escrever), **Ctrl+F** procura, **Ctrl+/** comenta.
 O LocalTeX não inclui o TeX; limita-se a chamá-lo. Procura-o por esta ordem:
 `--texbin PASTA` → pasta `texlive/` (ou `TinyTeX/`) ao lado do `server.py` → `PATH` do sistema.
 
+Não tem TeX? No Linux e no WSL, o script `install-tex.sh` instala-o por si: ver
+[C. Linux / WSL](#c-linux--wsl-instalação-passo-a-passo).
+
 ## Três formas de usar
 
 ### A. Modo servidor (recomendado para o computador do trabalho)
@@ -93,11 +96,58 @@ Limite a ter em conta: se a empresa bloquear a execução de programas a partir 
 utilizador ou de pens (AppLocker e semelhantes), nem o Python nem o TeX arrancam. Nesse caso só
 o modo servidor (A) funciona.
 
-### C. Linux / macOS com TeX já instalado
+### C. Linux / WSL: instalação passo a passo
+
+**1. Verifique se já tem TeX.** Num terminal:
+
+```sh
+lualatex --version
+```
+
+Se mostrar uma versão, salte para o passo 4. Se disser `command not found`, siga o passo 2.
+
+**2. Instale o TeX Live** (só uma vez). Na pasta do LocalTeX:
+
+```sh
+./install-tex.sh
+```
+
+- Instala o TeX Live oficial completo em `~/texlive`: cerca de **5 GB** e **15 a 30 minutos**,
+  conforme a ligação. Não precisa de `sudo` (só o pede se faltar o `perl`, o `wget` ou o
+  `fontconfig`, que o Ubuntu normalmente já traz).
+- Acrescenta `~/texlive/bin/x86_64-linux` ao `PATH`, em `~/.profile` e `~/.bashrc`.
+- No fim verifica as ferramentas que o LocalTeX usa (`lualatex`, `xelatex`, `pdflatex`,
+  `latexmk`, `bibtex`, `biber`, `kpsewhich`, `synctex`, `texcount`) e compila um documento
+  de teste. Tem de terminar com `lualatex test: OK`.
+
+**3. Abra um terminal novo** (ou corra `source ~/.profile`), para o `PATH` novo ser lido.
+Confirme com `lualatex --version`.
+
+**4. Arranque o LocalTeX:**
 
 ```sh
 ./start.sh
 ```
+
+Abra http://localhost:8765 no browser. No WSL, o browser do Windows também lá chega.
+
+**Opções do `install-tex.sh`:**
+
+| Opção | O que faz |
+|---|---|
+| `--scheme medium` | Instalação mais pequena (~1,5 GB) com os pacotes que o LocalTeX usa. Pacotes em falta: `tlmgr install NOME`. |
+| `--apt` | Usa os pacotes do Ubuntu/Debian (pede `sudo`; versão do TeX Live mais antiga, fica em `/usr/bin`). |
+| `--prefix PASTA` | Instala noutra pasta em vez de `~/texlive`. |
+| `--mirror URL` | Usa um espelho CTAN à escolha, se o automático for lento. |
+| `--with-docs` | Inclui a documentação dos pacotes (mais ~2 GB). |
+
+**Atualizar:** volte a correr `./install-tex.sh`; com o TeX Live já instalado, só atualiza os
+pacotes (`tlmgr update --all`).
+
+**Desinstalar:** apague a pasta `~/texlive` (e `~/.texlive`) e o bloco entre
+`# >>> LocalTeX: TeX Live >>>` e `# <<< LocalTeX: TeX Live <<<` em `~/.profile` e `~/.bashrc`.
+
+**macOS:** o script não serve. Instale o [MacTeX](https://tug.org/mactex/) e corra `./start.sh`.
 
 ## Opções
 
