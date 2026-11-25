@@ -951,7 +951,7 @@ const Git = {
   },
   open() {
     if (!S.project) return;
-    this.msg = null;
+    this.msg = null; this.keyOpen = false;
     $('git-dlg').showModal();
     this.render();
     this.refresh();
@@ -976,6 +976,26 @@ const Git = {
     if (S.path && S.files.some(f => f.path === S.path)) { const p = S.path; S.path = null; S.dirty = false; await openFile(p); }
     else if (S.path) { S.path = null; $('filename').textContent = '—'; Ed.set('', ''); }
     Bib.load(); Sym.load();
+  },
+  // Chave SSH propria do projeto; se o remoto for HTTPS, oferece muda-lo para SSH.
+  keySection(st) {
+    const sec = el('div', { class: 'git-section' });
+    const p = st.remote ? Clone.parse(st.remote) : null;
+    const open = st.deployKey || this.keyOpen;
+    const head = el('div', null, el('b', null, t('Chave SSH do projeto')), ' ',
+      el('span', { class: 'muted' }, st.deployKey ? t('(o git deste projeto usa só esta chave)') : t('(não tem; usa o acesso da máquina)')));
+    sec.append(head);
+    if (!open) {
+      sec.append(el('button', { disabled: this.busy || null, onclick: () => { this.keyOpen = true; this.render(); } }, t('Usar uma chave SSH própria…')));
+      return sec;
+    }
+    sec.append(DeployKey.build(S.project, p, st.deployKey, { removable: true, onChange: () => { this.keyOpen = false; this.refresh(); } }));
+    if (st.deployKey && p && p.scheme !== 'ssh') {
+      const to = Clone.sshUrl(p);
+      sec.append(el('div', { class: 'clone-fix' }, el('span', null, t('O remoto usa HTTPS; a chave só funciona com o endereço SSH.')),
+        el('button', { disabled: this.busy || null, onclick: () => this.run('init', { url: to }, () => t('Remoto configurado.')) }, t('Usar {u}', { u: to }))));
+    }
+    return sec;
   },
   render() {
     const box = $('git-body'), st = this.st;
@@ -1010,6 +1030,7 @@ const Git = {
           B(t('↓ Receber alterações'), { title: t('git pull: traz as alterações feitas noutros sítios (as suas são mantidas)'),
             onclick: async () => { const r = await this.run('pull', {}, x => x.message); if (r) await this.reloadAll(); } })));
       }
+      box.append(this.keySection(st));
       const sec = el('div', { class: 'git-section' });
       if (st.changes.length) {
         sec.append(el('div', null, t('{n} ficheiro(s) alterado(s):', { n: st.changes.length })),
@@ -1032,6 +1053,71 @@ const Git = {
     if (this.msg) box.append(el('pre', { class: 'git-msg' + (this.msg.bad ? ' bad' : this.msg.ok ? ' ok' : '') }, this.msg.text));
   },
 };
+/* Chave SSH por projeto (deploy key): criar, copiar a chave publica, testar. Usado no
+   dialogo «Clonar Git» (antes de o projeto existir) e no painel Git. */
+const DeployKey = {
+  settingsUrl(p) {
+    if (!p) return null;
+    const repo = Clone.repoPath(p);
+    if (p.host === 'github.com') return `https://github.com/${repo}/settings/keys/new`;
+    if (/(^|\.)gitlab\./.test(p.host)) return `https://${p.host}/${repo}/-/settings/repository`;
+    return null;
+  },
+  // name: projeto; p: endereco ja analisado (Clone.parse) ou null; key: {publicKey} ou null.
+  // opts.onChange(key) depois de criar/remover; opts.removable mostra «Remover».
+  build(name, p, key, opts) {
+    opts = opts || {};
+    const box = el('div', { class: 'deploy-key' });
+    if (!key) {
+      const go = el('button', { type: 'button' }, t('Gerar chave SSH'));
+      go.onclick = async () => {
+        go.disabled = true;
+        try { const r = await api('POST', '/api/deploykey?name=' + encodeURIComponent(name)); opts.onChange && opts.onChange(r.key); }
+        catch (e) { go.disabled = false; alertErr(e); }
+      };
+      box.append(el('p', null, t('O LocalTeX cria uma chave SSH só para «{n}», guardada nesta máquina. Depois adiciona-a ao repositório como «deploy key». No GitHub, cada deploy key só abre um repositório: é por isso que cada projeto tem a sua.', { n: name })),
+        el('div', null, go));
+      return box;
+    }
+    const ta = el('textarea', { rows: '3', readonly: '', spellcheck: 'false' });
+    ta.value = key.publicKey;
+    ta.onfocus = () => ta.select();
+    const copy = el('button', { type: 'button' }, t('Copiar'));
+    copy.onclick = () => copyWithFeedback(ta.value, copy);
+    const res = el('p', { hidden: '' });
+    const test = el('button', { type: 'button' }, t('Testar ligação'));
+    const host = p ? p.host : 'github.com', user = p && p.user ? p.user : 'git';
+    test.onclick = async () => {
+      test.disabled = true; res.hidden = false; res.className = ''; res.textContent = t('A testar…');
+      try {
+        const r = await api('GET', `/api/deploykey/test?name=${encodeURIComponent(name)}&host=${encodeURIComponent(host)}&user=${encodeURIComponent(user)}`);
+        if (r.ssh) { res.className = 'ok'; res.textContent = '✓ ' + (r.sshUser ? t('A chave funciona: {h} aceita-a para {u}.', { h: host, u: r.sshUser }) : t('A chave funciona.')); }
+        else {
+          res.className = 'bad';
+          res.textContent = r.sshProblem === 'denied' ? t('{h} ainda não aceita esta chave. Adicione-a ao repositório e teste de novo.', { h: host })
+            : r.sshProblem === 'nossh' ? t('O ssh não está instalado nesta máquina.')
+            : t('Não foi possível ligar a {h} por SSH (sem rede ou porta 22 bloqueada).', { h: host });
+        }
+      } catch (e) { res.className = 'bad'; res.textContent = e.message; }
+      finally { test.disabled = false; }
+    };
+    const url = this.settingsUrl(p);
+    const steps = el('p', null, t('Copie esta chave pública e adicione-a ao repositório: {w}. Marque «Allow write access» para poder enviar alterações.',
+      { w: host === 'github.com' ? 'Settings → Deploy keys → Add deploy key' : /gitlab/.test(host) ? 'Settings → Repository → Deploy keys' : t('definições do repositório → deploy keys') }));
+    const btns = el('div', { class: 'dlg-foot', style: 'justify-content:flex-start' }, copy,
+      url ? el('a', { href: url, target: '_blank', rel: 'noopener', class: 'btn' }, t('Abrir definições do repositório ↗')) : null, test);
+    if (opts.removable) {
+      const rm = el('button', { type: 'button', class: 'quiet' }, t('Remover chave'));
+      rm.onclick = async () => {
+        if (rm.dataset.sure !== '1') { rm.dataset.sure = '1'; rm.textContent = t('Remover? Clique de novo'); return; }
+        try { await api('DELETE', '/api/deploykey?name=' + encodeURIComponent(name)); opts.onChange && opts.onChange(null); } catch (e) { alertErr(e); }
+      };
+      btns.append(rm);
+    }
+    box.append(steps, ta, btns, res);
+    return box;
+  },
+};
 const Clone = {
   access: {},  // servidor -> Promise da resposta de /api/git/access
   timer: 0,
@@ -1039,6 +1125,7 @@ const Clone = {
     $('clone-err').hidden = true;
     $('clone-url').value = ''; $('clone-name').value = ''; $('clone-branch').value = '';
     delete $('clone-name').dataset.touched;
+    $('clone-usekey').checked = false; $('clone-key').hidden = true; $('clone-key').replaceChildren();
     this.access = {};
     $('clone-dlg').showModal();
     $('clone-url').focus();
@@ -1075,6 +1162,7 @@ const Clone = {
   render(a, host, p) {
     const box = $('clone-access'), fix = $('clone-fix');
     const ex = 'utilizador/repo.git';
+    if ($('clone-usekey').checked) a = null;  // com chave propria, o acesso da maquina nao conta
     box.hidden = !a; fix.hidden = true; box.className = 'clone-access';
     $('clone-url').placeholder = `https://${host || 'github.com'}/${t(ex)}`;
     if (!a) return;
@@ -1112,9 +1200,32 @@ const Clone = {
     b.onclick = () => { $('clone-url').value = to; $('clone-url').dispatchEvent(new Event('input')); $('clone-url').focus(); };
     fix.hidden = false;
   },
+  // Secao «chave propria»: mostra a chave do nome escrito (ou o botao para a criar).
+  keyTimer: 0,
+  async keyRender() {
+    const box = $('clone-key'), on = $('clone-usekey').checked;
+    box.hidden = !on;
+    if (!on) { box.replaceChildren(); this.check(); return; }
+    const name = $('clone-name').value.trim(), p = this.parse($('clone-url').value.trim());
+    if (!name) { box.replaceChildren(el('p', { class: 'muted' }, t('Escreva primeiro o nome do projeto.'))); return; }
+    let key = null;
+    try { key = (await api('GET', '/api/deploykey?name=' + encodeURIComponent(name))).key; }
+    catch (e) { box.replaceChildren(el('p', { class: 'bad' }, e.message)); return; }
+    if ($('clone-name').value.trim() !== name || !$('clone-usekey').checked) return;
+    const inner = DeployKey.build(name, p, key, { onChange: () => this.keyRender() });
+    box.replaceChildren(...inner.childNodes);
+    this.check();
+  },
+  keySchedule() { clearTimeout(this.keyTimer); this.keyTimer = setTimeout(() => this.keyRender(), 350); },
   async submit(ev) {
     ev.preventDefault();
-    const url = $('clone-url').value.trim(), name = $('clone-name').value.trim();
+    let url = $('clone-url').value.trim();
+    const name = $('clone-name').value.trim();
+    if ($('clone-usekey').checked) {
+      // as deploy keys so funcionam por SSH
+      const p = this.parse(url);
+      if (p && p.scheme !== 'ssh') { url = this.sshUrl(p); $('clone-url').value = url; }
+    }
     const go = $('clone-go');
     go.disabled = true; go.textContent = t('A clonar…'); $('clone-err').hidden = true;
     try {
@@ -1232,8 +1343,10 @@ function wire() {
     const m = $('clone-url').value.trim().match(/([^/:]+?)(?:\.git)?\/?$/);
     if (m && !$('clone-name').dataset.touched) $('clone-name').value = m[1].replace(/[^\w .()\-]/g, ' ').trim();
     Clone.schedule();
+    if ($('clone-usekey').checked) Clone.keySchedule();
   });
-  $('clone-name').addEventListener('input', () => { $('clone-name').dataset.touched = '1'; });
+  $('clone-name').addEventListener('input', () => { $('clone-name').dataset.touched = '1'; if ($('clone-usekey').checked) Clone.keySchedule(); });
+  $('clone-usekey').addEventListener('change', () => Clone.keyRender());
   $('btn-git').onclick = () => Git.open();
   $('git-close').onclick = () => $('git-dlg').close();
   $('file-zip').onchange = async ev => {

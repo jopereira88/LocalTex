@@ -15,6 +15,7 @@ import re
 import shutil
 import shlex
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -135,10 +136,6 @@ MESSAGES_EN = {
     "Entrada BibTeX inválida.": "Invalid BibTeX entry.",
     "O git não está instalado nesta máquina.": "git is not installed on this machine.",
     "O git demorou demasiado (rede ou autenticação?).": "git took too long (network or authentication?).",
-    "Sem credenciais para este repositório. Configure uma chave SSH ou um credential helper na "
-    "máquina onde corre o LocalTeX, ou use um URL com token (https://TOKEN@github.com/utilizador/repo.git).":
-        "No credentials for this repository. Set up an SSH key or a credential helper on the machine "
-        "running LocalTeX, or use a URL with a token (https://TOKEN@github.com/user/repo.git).",
     "Indique o seu nome e e-mail no painel Git.": "Enter your name and e-mail in the Git panel.",
     "O repositório remoto tem alterações que ainda não tem. Faça «Receber» primeiro.":
         "The remote repository has changes you don't have yet. Use «Pull» first.",
@@ -150,6 +147,24 @@ MESSAGES_EN = {
     "Servidor inválido.": "Invalid server.",
     "Esta máquina acede a %s por SSH: use o endereço SSH, %s":
         "This machine reaches %s over SSH: use the SSH address, %s",
+    "Sem credenciais para este repositório. Crie uma chave SSH para este projeto "
+    "(«Usar uma chave SSH própria» no diálogo «Clonar Git», ou no painel Git), "
+    "configure uma chave SSH ou um credential helper na máquina onde corre o "
+    "LocalTeX, ou use um URL com token (https://TOKEN@github.com/utilizador/repo.git).":
+        "No credentials for this repository. Create an SSH key for this project («Use its own "
+        "SSH key» in the «Clone Git» dialog, or in the Git panel), set up an SSH key or a "
+        "credential helper on the machine running LocalTeX, or use a URL with a token "
+        "(https://TOKEN@github.com/user/repo.git).",
+    "A chave SSH deste projeto não foi aceite. Adicione a chave pública como «Deploy key» nas "
+    "definições do repositório (painel Git ou diálogo «Clonar Git») e use o endereço SSH "
+    "(git@servidor:utilizador/repo.git).":
+        "This project's SSH key was not accepted. Add the public key as a «Deploy key» in the "
+        "repository settings (Git panel or «Clone Git» dialog) and use the SSH address "
+        "(git@server:user/repo.git).",
+    "O ssh-keygen (OpenSSH) não está instalado nesta máquina.":
+        "ssh-keygen (OpenSSH) is not installed on this machine.",
+    "Não foi possível criar a chave SSH: %s": "Could not create the SSH key: %s",
+    "Este projeto não tem chave SSH.": "This project has no SSH key.",
     "Indique um nome e um e-mail válidos.": "Enter a valid name and e-mail.",
     "Este projeto não tem repositório remoto (origin).": "This project has no remote repository (origin).",
     "O remoto ainda não tem o ramo «%s»; nada para receber.":
@@ -986,38 +1001,57 @@ GIT_URL_RE = re.compile(r"^(?:https?://|ssh://|git://)[^\s]+$|^[\w.\-]+@[\w.\-]+
 GIT_EXCLUDE_MARK = "# LocalTeX: ficheiros auxiliares"
 
 
-def git_env():
+def git_env(key=None):
+    """key: chave SSH do projeto (Path) ou None para usar a configuracao SSH da maquina."""
     env = dict(os.environ)
+    ssh = env.get("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
+    if key:
+        # so esta chave (nem o agente SSH nem ~/.ssh/config interferem); a chave do servidor
+        # fica num known_hosts proprio, aceite na primeira ligacao (tambem no Docker)
+        q = lambda x: shlex.quote(Path(x).as_posix())
+        ssh += " -o BatchMode=yes -i %s -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+               " -o UserKnownHostsFile=%s" % (q(key), q(keys_dir() / "known_hosts"))
     env.update({"GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never", "LC_ALL": "C",
-                "GIT_SSH_COMMAND": env.get("GIT_SSH_COMMAND", "ssh -o BatchMode=yes"),
+                "GIT_SSH_COMMAND": ssh,
                 # nunca subir ate a pasta-mae (o proprio LocalTeX pode ser um repositorio)
                 "GIT_CEILING_DIRECTORIES": str(CFG.projects)})
     return env
 
 
-def git(cwd, *args, check=True, timeout=180):
+def git(cwd, *args, check=True, timeout=180, key=None):
+    """key: nome do projeto cuja chave SSH usar; por omissao, o projeto em que corre."""
     exe = shutil.which("git")
     if not exe:
         raise ApiError(400, "O git não está instalado nesta máquina.")
+    if key is None and Path(cwd).parent == CFG.projects:
+        key = Path(cwd).name
+    kf = key_file(key) if key else None
+    kf = kf if kf and kf.exists() else None
     try:
-        p = subprocess.run([exe] + list(args), cwd=str(cwd), env=git_env(),
+        p = subprocess.run([exe] + list(args), cwd=str(cwd), env=git_env(kf),
                            stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         raise ApiError(504, "O git demorou demasiado (rede ou autenticação?).")
     out = (p.stdout + p.stderr).decode("utf-8", "replace").strip()
     if check and p.returncode != 0:
-        raise ApiError(400, git_explain(out))
+        raise ApiError(400, git_explain(out, keyed=bool(kf)))
     return p.returncode, out
 
 
-def git_explain(out):
+def git_explain(out, keyed=False):
     low = out.lower()
     hint = ""
-    if "could not read username" in low or "authentication failed" in low \
+    if keyed and ("permission denied (publickey)" in low or "repository not found" in low
+                  or "could not read from remote" in low):
+        hint = ("\n\nA chave SSH deste projeto não foi aceite. Adicione a chave pública como "
+                "«Deploy key» nas definições do repositório (painel Git ou diálogo «Clonar Git») "
+                "e use o endereço SSH (git@servidor:utilizador/repo.git).")
+    elif "could not read username" in low or "authentication failed" in low \
             or "permission denied (publickey)" in low or "terminal prompts disabled" in low:
-        hint = ("\n\nSem credenciais para este repositório. Configure uma chave SSH ou um "
-                "credential helper na máquina onde corre o LocalTeX, ou use um URL com token "
-                "(https://TOKEN@github.com/utilizador/repo.git).")
+        hint = ("\n\nSem credenciais para este repositório. Crie uma chave SSH para este projeto "
+                "(«Usar uma chave SSH própria» no diálogo «Clonar Git», ou no painel Git), "
+                "configure uma chave SSH ou um credential helper na máquina onde corre o "
+                "LocalTeX, ou use um URL com token (https://TOKEN@github.com/utilizador/repo.git).")
     elif "please tell me who you are" in low or "empty ident" in low:
         hint = "\n\nIndique o seu nome e e-mail no painel Git."
     elif "non-fast-forward" in low or "fetch first" in low or "rejected" in low:
@@ -1060,7 +1094,14 @@ def git_access(host, user="git"):
                       "https://" + host, check=False, timeout=10)
         if rc == 0 and out.strip():
             res["https"] = out.strip().splitlines()[-1]
-    env = git_env()
+    res.update(ssh_probe(git_env(), host, user))
+    ACCESS_CACHE[key] = (time.time(), res)
+    return res
+
+
+def ssh_probe(env, host, user="git"):
+    """Tenta "ssh -T utilizador@servidor" como o git faria. -> {ssh, sshUser, sshProblem}"""
+    res = {"ssh": False, "sshUser": None, "sshProblem": None}
     try:
         cmd = shlex.split(env["GIT_SSH_COMMAND"], posix=os.name != "nt")
         if not cmd or not shutil.which(cmd[0]):
@@ -1083,8 +1124,67 @@ def git_access(host, user="git"):
         res["sshProblem"] = "network"
     except (OSError, ValueError):
         res["sshProblem"] = "nossh"
-    ACCESS_CACHE[key] = (time.time(), res)
     return res
+
+
+# Chave SSH por projeto ("deploy key"). No GitHub/GitLab uma deploy key so abre UM
+# repositorio, por isso cada projeto tem a sua: <projetos>/.keys/<nome> (+ .pub). Todos os
+# comandos git desse projeto passam a usa-la (ver git_env), sem agente SSH nem ~/.ssh/config:
+# continua a funcionar depois de reiniciar, noutra sessao e no Docker.
+def keys_dir():
+    return CFG.projects / ".keys"
+
+
+def key_file(name):
+    project_dir(name, must_exist=False)  # valida o nome
+    return keys_dir() / name
+
+
+def key_info(name):
+    k = key_file(name)
+    pub = k.parent / (k.name + ".pub")
+    if not (k.is_file() and pub.is_file()):
+        return None
+    return {"publicKey": pub.read_text("utf-8", "replace").strip()}
+
+
+def key_create(name):
+    if key_info(name):
+        return key_info(name)
+    exe = shutil.which("ssh-keygen")
+    if not exe:
+        raise ApiError(400, "O ssh-keygen (OpenSSH) não está instalado nesta máquina.")
+    k = key_file(name)
+    k.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.chmod(k.parent, 0o700)
+    except OSError:
+        pass
+    for f in (k, k.parent / (k.name + ".pub")):
+        if f.exists():
+            f.unlink()
+    comment = "localtex:%s@%s" % (re.sub(r"\s+", "_", name), socket.gethostname())
+    p = subprocess.run([exe, "-q", "-t", "ed25519", "-N", "", "-C", comment, "-f", str(k)],
+                       stdin=subprocess.DEVNULL, capture_output=True, timeout=30)
+    if p.returncode != 0 or not key_info(name):
+        raise ApiError(500, "Não foi possível criar a chave SSH: %s" %
+                       (p.stdout + p.stderr).decode("utf-8", "replace").strip())
+    return key_info(name)
+
+
+def key_delete(name):
+    k = key_file(name)
+    for f in (k, k.parent / (k.name + ".pub")):
+        if f.exists():
+            f.unlink()
+
+
+def key_test(name, host, user="git"):
+    if not HOST_RE.match(host or "") or not re.match(r"^[\w.\-]{1,64}$", user or ""):
+        raise ApiError(400, "Servidor inválido.")
+    if not key_info(name):
+        raise ApiError(404, "Este projeto não tem chave SSH.")
+    return ssh_probe(git_env(key_file(name)), host, user)
 
 
 def https_to_ssh(url):
@@ -1133,7 +1233,7 @@ def git_clone(url, proj, branch=None):
             raise ApiError(400, "Nome de ramo inválido.")
         args += ["--branch", branch]
     try:
-        git(CFG.projects, *args, "--", url, proj.name, timeout=600)
+        git(CFG.projects, *args, "--", url, proj.name, timeout=600, key=proj.name)
     except ApiError as e:
         shutil.rmtree(proj, ignore_errors=True)
         alt = https_to_ssh(url) if "Sem credenciais" in e.message else None
@@ -1177,6 +1277,7 @@ def git_status(proj):
     info["identity"] = {"name": name, "email": email} if name and email else None
     _, last = git(proj, "log", "-1", "--format=%h %s (%cr)", check=False)
     info["last"] = last if last and not last.startswith("fatal") else None
+    info["deployKey"] = key_info(proj.name)
     return info
 
 
@@ -1762,6 +1863,20 @@ class Handler(BaseHTTPRequestHandler):
         if parts == ["git", "access"] and m == "GET":
             return self.send_json(git_access((q.get("host") or "github.com").strip(),
                                              (q.get("user") or "git").strip()))
+        if parts == ["deploykey"]:
+            name = (q.get("name") or "").strip()
+            if m == "GET":
+                return self.send_json({"key": key_info(name)})
+            if m == "POST":
+                self.body()
+                return self.send_json({"key": key_create(name)})
+            if m == "DELETE":
+                key_delete(name)
+                return self.send_json({"ok": True})
+        if parts == ["deploykey", "test"] and m == "GET":
+            return self.send_json(key_test((q.get("name") or "").strip(),
+                                           (q.get("host") or "github.com").strip(),
+                                           (q.get("user") or "git").strip()))
         if parts == ["spell"] and m == "GET":
             return self.send_json({k: v[0] for k, v in SPELL_LANGS.items()})
         if parts == ["spell"] and m == "POST":
@@ -1809,6 +1924,7 @@ class Handler(BaseHTTPRequestHandler):
         action = rest[0] if rest else ""
         if not rest and m == "DELETE":
             shutil.rmtree(proj)
+            key_delete(proj.name)
             return self.send_json({"ok": True})
         if action == "tree" and m == "GET":
             s = load_settings(proj)

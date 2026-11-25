@@ -200,6 +200,23 @@ alternativa, use um token no endereço: `https://TOKEN@github.com/utilizador/rep
 (fica guardado em texto simples em `.git/config` desse projeto; o LocalTeX esconde-o no
 ecrã). O nome e e-mail das versões vêm da configuração do git; se faltarem, o painel pede-os.
 
+**Chave SSH por projeto (deploy key).** Para repositórios privados sem configurar nada na
+máquina: no diálogo **Clonar Git** marque «Usar uma chave SSH própria para este projeto» e
+carregue em **Gerar chave SSH** (num projeto existente: painel **Git** → «Usar uma chave SSH
+própria…»). Copie a chave pública e adicione-a no repositório em *Settings → Deploy keys →
+Add deploy key* (marque *Allow write access* para poder enviar); **Testar ligação** confirma
+que foi aceite. No GitHub cada deploy key só abre **um** repositório (e a mesma chave não
+pode ser registada em dois), por isso cada projeto tem a sua.
+
+- As chaves ficam em `projects/.keys/<projeto>` (privada, `0600`) e `.pub`; todos os comandos
+  git desse projeto usam só essa chave (`ssh -i … -o IdentitiesOnly=yes`), sem agente SSH nem
+  `~/.ssh/config`. Sobrevivem a reinícios e, no Docker, ficam no volume `/data`.
+- A chave do servidor (p. ex. github.com) é aceite na primeira ligação e guardada em
+  `projects/.keys/known_hosts`.
+- As deploy keys só funcionam com o endereço SSH: o diálogo converte um endereço HTTPS, e o
+  painel Git oferece mudar o remoto de um projeto existente.
+- Eliminar o projeto apaga a sua chave; remova também a deploy key no site.
+
 ## Ortografia
 
 Línguas: **português (Portugal, Acordo Ortográfico de 1990)**, **inglês britânico** e

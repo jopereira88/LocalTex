@@ -6,6 +6,13 @@ segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 ## [Por lançar]
 
 ### Adicionado
+- Chave SSH por projeto (*deploy key*), para clonar e enviar para repositórios privados sem
+  configurar a máquina: «Usar uma chave SSH própria» no diálogo «Clonar Git» e no painel Git.
+  O LocalTeX gera uma chave ed25519 em `projects/.keys/`, mostra a chave pública para copiar
+  (com ligação direta para *Settings → Deploy keys* no GitHub/GitLab) e testa se foi aceite.
+  Todos os comandos git do projeto passam a usar só essa chave, sem depender do agente SSH:
+  continua a funcionar depois de reiniciar e no Docker. Novos endpoints
+  `GET/POST/DELETE /api/deploykey?name=` e `GET /api/deploykey/test`.
 - Fontes Microsoft automáticas para o fontspec: Times New Roman, Arial (todas as variantes,
   incluindo Black e Narrow), Calibri, Helvetica e Comic Sans MS. Novo `fonts.sh`: no WSL
   expõe as fontes do Windows ao fontconfig/luaotfload; em Linux puro descarrega as *Core fonts

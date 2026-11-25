@@ -135,6 +135,8 @@
     <p id="clone-access" class="clone-access" data-no-i18n hidden></p>
     <p id="clone-fix" class="clone-fix" data-no-i18n hidden><span></span> <button type="button"></button></p>
     <label>Nome do projeto <input id="clone-name" required spellcheck="false"></label>
+    <label class="check"><input type="checkbox" id="clone-usekey"> Usar uma chave SSH própria para este projeto (deploy key)</label>
+    <div id="clone-key" class="deploy-key" data-no-i18n hidden></div>
     <label>Ramo (opcional) <input id="clone-branch" placeholder="o ramo principal do repositório" spellcheck="false"></label>
     <p id="clone-err" class="err" hidden></p>
     <div class="dlg-foot"><button type="button" id="clone-cancel">Cancelar</button>

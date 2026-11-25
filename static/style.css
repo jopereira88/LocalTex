@@ -231,6 +231,13 @@ dialog textarea { resize: vertical; }
 .clone-fix:not([hidden]) { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: -4px 0 0;
   padding: 6px 8px; border-radius: 4px; background: var(--warn-bg); color: var(--warn); font-size: 12px; }
 .clone-fix button { text-align: left; }
+dialog label.check { flex-direction: row; align-items: center; gap: 6px; color: var(--ink); }
+dialog label.check input { width: auto; margin: 0; }
+.deploy-key:not([hidden]) { display: flex; flex-direction: column; gap: 6px; align-self: stretch;
+  padding: 8px; border-radius: 4px; background: var(--bg); font-size: 12px; line-height: 1.45; }
+.deploy-key p { margin: 0; }
+.deploy-key textarea { font: 11px/1.4 var(--mono); word-break: break-all; resize: none; }
+.deploy-key .ok { color: var(--accent); } .deploy-key .bad { color: var(--err); }
 
 /* ortografia */
 .cm-spell-err { text-decoration: underline wavy var(--ed-spell); text-decoration-skip-ink: none;
