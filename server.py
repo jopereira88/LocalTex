@@ -28,7 +28,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlsplit
 
-__version__ = "1.2.1"
+__version__ = "1.3.0"
 
 ROOT = Path(__file__).resolve().parent
 STATIC = ROOT / "static"

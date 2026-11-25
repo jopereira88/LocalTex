@@ -3,7 +3,7 @@
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e a numeração
 segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
-## [Por lançar]
+## [1.3.0] - 2026-11-25
 
 ### Adicionado
 - Chave SSH por projeto (*deploy key*), para clonar e enviar para repositórios privados sem
