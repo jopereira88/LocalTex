@@ -233,6 +233,12 @@ const EN = {
     'GitHub also accepts SSH on port 443: see «Using SSH over the HTTPS port» in the GitHub docs.',
   'Cancelar': 'Cancel',
   'Clonar': 'Clone',
+  'Mostrar no PDF o texto da linha do cursor (Ctrl+Alt+P)': 'Show the text at the cursor line in the PDF (Ctrl+Alt+P)',
+  'PDF →': 'PDF →',
+  'Ir para o código do que está no topo do PDF visível (Ctrl+Alt+C). Também pode fazer duplo clique no PDF.':
+    'Go to the source of what is at the top of the visible PDF (Ctrl+Alt+C). You can also double-click the PDF.',
+  '← Código': '← Source',
+  'Abra um ficheiro .tex para o localizar no PDF.': 'Open a .tex file to find it in the PDF.',
   'Usar uma chave SSH própria para este projeto (deploy key)': 'Use its own SSH key for this project (deploy key)',
   'Escreva primeiro o nome do projeto.': 'Enter the project name first.',
   'Gerar chave SSH': 'Generate SSH key',

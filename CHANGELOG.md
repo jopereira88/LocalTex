@@ -3,6 +3,22 @@
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/) e a numeração
 segue [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [Por lançar]
+
+### Adicionado
+- Ligação código ↔ PDF com SyncTeX. **PDF →** (Ctrl+Alt+P) realça no PDF o texto da linha do
+  cursor e leva-o à vista; **← Código** (Ctrl+Alt+C) e o duplo clique no PDF abrem o ficheiro
+  e a linha correspondentes, também em ficheiros incluídos. Usa o `.synctex.gz` que a
+  compilação já gerava e a ferramenta `synctex` da distribuição TeX. Novo endpoint
+  `GET /api/projects/<p>/synctex` (`file`+`line` ou `page`+`x`+`y`). Se o PDF existente não
+  tiver dados SyncTeX (p. ex. compilado fora do LocalTeX), a compilação seguinte refá-lo.
+
+### Corrigido
+- Compilar um projeto já em dia (p. ex. compilado fora do LocalTeX) dava erro sem problemas
+  nem log: o latexmk responde «All targets are up-to-date» sem gerar um PDF novo. Passa a
+  contar como sucesso, com o log e os avisos dessa compilação. Uma falha sem erro
+  identificado mostra agora o fim da saída, em vez de uma lista vazia.
+
 ## [1.3.0] - 2026-11-25
 
 ### Adicionado

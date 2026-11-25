@@ -20,6 +20,11 @@ máquina ou no seu servidor. Compila com **LuaLaTeX**, **XeLaTeX** ou pdfLaTeX a
   definidos no projeto com `\newcommand`), ambientes (`\begin{ite…` cria o bloco
   `itemize` completo), rótulos em `\ref{…}`/`\cref{…}`, ficheiros em `\input{…}` e
   `\includegraphics{…}`, e chaves de citação. Ctrl+Espaço mostra as sugestões a pedido.
+- **Código ↔ PDF (SyncTeX)**: o botão **PDF →** (Ctrl+Alt+P), por cima do editor, mostra
+  no PDF o texto da linha do cursor, realçado por momentos; **← Código** (Ctrl+Alt+C), por
+  cima do PDF, abre o ficheiro e a linha do que está no topo do PDF visível. Um duplo clique
+  num ponto do PDF leva diretamente à linha correspondente. Funciona entre ficheiros
+  (`\include`/`\input`) e usa a última compilação: depois de mudar muito texto, compile.
 - **Git por projeto**: «Clonar Git» cria um projeto a partir de um repositório (GitHub,
   GitLab…); o botão «Git» mostra o que mudou, recebe alterações (pull) e guarda/envia
   versões (commit + push). Ver [Git](#git).
@@ -322,9 +327,8 @@ O separador «Log» mostra o log completo da última compilação.
 
 ## O que não tem (por agora)
 
-Colaboração em tempo real, histórico de versões (use Git na pasta do projeto), SyncTeX
-(clique no PDF ↔ código), verificação gramatical e resolução de conflitos do Git dentro do
-editor.
+Colaboração em tempo real, histórico de versões (use Git na pasta do projeto), verificação
+gramatical e resolução de conflitos do Git dentro do editor.
 
 ## Versões
 

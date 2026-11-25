@@ -166,6 +166,13 @@ MESSAGES_EN = {
     "Não foi possível criar a chave SSH: %s": "Could not create the SSH key: %s",
     "Este projeto não tem chave SSH.": "This project has no SSH key.",
     "Indique um nome e um e-mail válidos.": "Enter a valid name and e-mail.",
+    "A ferramenta synctex não foi encontrada na distribuição TeX.":
+        "The synctex tool was not found in the TeX distribution.",
+    "Sem informação SyncTeX: compile o projeto primeiro.": "No SyncTeX data: compile the project first.",
+    "Esta linha não corresponde a nada no PDF.": "This line doesn't match anything in the PDF.",
+    "Não foi possível encontrar o código deste ponto do PDF.":
+        "Could not find the source for this point of the PDF.",
+    "Pedido SyncTeX inválido.": "Invalid SyncTeX request.",
     "Este projeto não tem repositório remoto (origin).": "This project has no remote repository (origin).",
     "O remoto ainda não tem o ramo «%s»; nada para receber.":
         "The remote doesn't have branch «%s» yet; nothing to pull.",
@@ -538,6 +545,10 @@ def compile_project(proj, main_rel, engine, shell_escape):
         # que os erros reais voltem a aparecer no log.
         if rc != 0 and not timed_out and "previous invocation" in transcript[-1]:
             rc = step([latexmk, "-g", ENGINES[engine]] + opts + [main.name])
+        # o latexmk tambem nao recompila quando so falta o .synctex.gz (PDF feito fora do
+        # LocalTeX, sem -synctex): forca, para que a ligacao codigo <-> PDF funcione
+        elif rc == 0 and not timed_out and pdf.exists() and not synctex_file(pdf):
+            rc = step([latexmk, "-g", ENGINES[engine]] + opts + [main.name])
     else:
         tool = "sequência interna (latexmk indisponível)"
         base = [eng_path] + opts + [main.name]
@@ -566,26 +577,30 @@ def compile_project(proj, main_rel, engine, shell_escape):
             and not (pdf.exists() and pdf.stat().st_mtime >= started - 2):
         run_cmd([which("xdvipdfmx"), "-q", "-E", "-o", pdf.name, xdv.name], cwd, deadline)
 
+    pdf_ok = pdf.exists() and pdf.stat().st_mtime >= started - 2
+    # o latexmk nao recompila se nada mudou desde a ultima vez (p. ex. compilado fora do
+    # LocalTeX): rc 0 e o PDF existente esta em dia; mostra o log e os avisos dessa compilacao
+    up_to_date = latexmk and rc == 0 and not timed_out and not pdf_ok and pdf.exists()
+    since = 0 if up_to_date else started - 2
     log_text = ""
-    if log.exists() and log.stat().st_mtime >= started - 2:
+    if log.exists() and log.stat().st_mtime >= since:
         log_text = log.read_text("utf-8", "replace")
     issues = parse_log(log_text, proj, cwd)
     blg = cwd / (stem + ".blg")
-    if blg.exists() and blg.stat().st_mtime >= started - 2:
+    if blg.exists() and blg.stat().st_mtime >= since:
         issues = parse_blg(blg.read_text("utf-8", "replace"), proj, cwd) + issues
     if timed_out:
         issues.insert(0, {"level": "error", "file": None, "line": None,
                           "message": "Compilação interrompida: excedeu %d s." % CFG.timeout})
-    pdf_ok = pdf.exists() and pdf.stat().st_mtime >= started - 2
     n_err = sum(1 for i in issues if i["level"] == "error")
-    if rc != 0 and n_err == 0:
+    if (rc != 0 or not (pdf_ok or up_to_date or timed_out)) and n_err == 0:
         tail = "\n".join(transcript)[-1500:]
         issues.insert(0, {"level": "error", "file": None, "line": None,
                           "message": "A compilação falhou (código %s). Fim da saída:\n%s"
                                      % (rc, tail)})
         n_err = 1
     return {
-        "ok": rc == 0 and pdf_ok and not timed_out,
+        "ok": rc == 0 and (pdf_ok or up_to_date) and not timed_out,
         "pdf": pdf.relative_to(proj).as_posix() if pdf.exists() else None,
         "pdfUpdated": pdf_ok,
         "engine": engine, "tool": tool, "main": main_rel,
@@ -594,6 +609,91 @@ def compile_project(proj, main_rel, engine, shell_escape):
         "log": log_text[-400000:],
         "output": "\n".join(transcript)[-200000:],
     }
+
+
+# SyncTeX: liga o codigo ao PDF e vice-versa, com o ficheiro .synctex.gz que a compilacao
+# gera (-synctex=1) e a ferramenta "synctex" da distribuicao TeX. Coordenadas em pontos
+# PostScript (bp), a partir do canto superior esquerdo da pagina.
+SYNCTEX_BAD = ("No SyncTeX available", "SyncTeX ERROR")
+
+
+def synctex_file(pdf):
+    """O .synctex(.gz) que corresponde ao PDF, ou None se faltar ou for mais antigo."""
+    for ext in (".synctex.gz", ".synctex"):
+        f = pdf.parent / (pdf.stem + ext)
+        if f.is_file() and f.stat().st_mtime >= pdf.stat().st_mtime - 5:
+            return f
+    return None
+
+
+def synctex_run(args, cwd):
+    exe = which("synctex")
+    if not exe:
+        raise ApiError(400, "A ferramenta synctex não foi encontrada na distribuição TeX.")
+    rc, out, _ = run_cmd([exe] + args, cwd, time.time() + 15)
+    if any(b in out for b in SYNCTEX_BAD) or "SyncTeX result begin" not in out:
+        raise ApiError(404, "Sem informação SyncTeX: compile o projeto primeiro.")
+    recs, cur = [], None
+    for ln in out.split("SyncTeX result begin", 1)[1].splitlines():
+        k, sep, v = ln.partition(":")
+        if not sep:
+            continue
+        if k == "Output":
+            cur = {}
+            recs.append(cur)
+        elif cur is not None:
+            cur[k] = v.strip()
+    return recs
+
+
+def synctex_main(proj):
+    main = guess_main(proj, load_settings(proj))
+    if not main:
+        raise ApiError(400, "O projeto não tem nenhum ficheiro .tex.")
+    main = safe_path(proj, main)
+    pdf = main.parent / (main.stem + ".pdf")
+    if not pdf.is_file() or not synctex_file(pdf):
+        raise ApiError(404, "Sem informação SyncTeX: compile o projeto primeiro.")
+    return main, pdf
+
+
+def synctex_forward(proj, file_rel, line, col=0):
+    """Codigo -> PDF: {page, boxes: [{x, y, w, h}]} (caixas da primeira pagina encontrada)."""
+    main, pdf = synctex_main(proj)
+    src = safe_path(proj, file_rel)
+    rel = os.path.relpath(src, main.parent).replace(os.sep, "/")
+    recs = synctex_run(["view", "-i", "%d:%d:%s" % (max(1, int(line)), max(0, int(col)), rel),
+                        "-o", pdf.name], main.parent)
+    boxes, page = [], None
+    for r in recs:
+        try:
+            pg = int(r["Page"])
+            h, v, w, hh = (float(r[k]) for k in ("h", "v", "W", "H"))
+        except (KeyError, ValueError):
+            continue
+        if page is None:
+            page = pg
+        if pg == page and w > 0:
+            boxes.append({"x": h, "y": v - hh, "w": w, "h": hh})
+    if page is None:
+        raise ApiError(404, "Esta linha não corresponde a nada no PDF.")
+    return {"page": page, "boxes": boxes[:40]}
+
+
+def synctex_inverse(proj, page, x, y):
+    """PDF -> codigo: {file, line} (caminho relativo ao projeto)."""
+    main, pdf = synctex_main(proj)
+    recs = synctex_run(["edit", "-o", "%d:%.2f:%.2f:%s" % (int(page), float(x), float(y),
+                                                         pdf.name)], main.parent)
+    root = proj.resolve()
+    for r in recs:
+        inp, line = r.get("Input"), r.get("Line", "")
+        if not inp or not line.lstrip("-").isdigit():
+            continue
+        fp = (main.parent / inp).resolve()
+        if fp.is_file() and (root == fp or root in fp.parents):
+            return {"file": fp.relative_to(root).as_posix(), "line": max(1, int(line))}
+    raise ApiError(404, "Não foi possível encontrar o código deste ponto do PDF.")
 
 
 BLG_LOC_RE = re.compile(r"-+line (\d+) of file (\S+)")
@@ -2013,6 +2113,14 @@ class Handler(BaseHTTPRequestHandler):
             finally:
                 lock.release()
             return self.send_json(res)
+        if action == "synctex" and m == "GET":
+            try:
+                if q.get("page"):
+                    return self.send_json(synctex_inverse(proj, q["page"], q.get("x"), q.get("y")))
+                return self.send_json(synctex_forward(proj, q.get("file"), q.get("line") or 1,
+                                                      q.get("col") or 0))
+            except (TypeError, ValueError):
+                raise ApiError(400, "Pedido SyncTeX inválido.")
         if action == "bib" and len(rest) == 1 and m == "GET":
             return self.send_json(bib_info(proj))
         if action == "bib" and rest[1:] == ["add"] and m == "POST":

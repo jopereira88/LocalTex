@@ -142,7 +142,11 @@ div.CodeMirror span.CodeMirror-nonmatchingbracket { color: var(--ed-nomatch); }
 #preview { background: var(--pdf-bg); }
 #pages { flex: 1; overflow: auto; padding: 10px; }
 #pages .empty { color: #f1f1ec; }
-.page { margin: 0 auto 10px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.page { position: relative; margin: 0 auto 10px; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.sync-mark { position: absolute; pointer-events: none; border-radius: 2px;
+  background: rgba(255, 196, 0, .35); outline: 1px solid rgba(220, 150, 0, .7);
+  animation: sync-fade 2.6s ease-in forwards; }
+@keyframes sync-fade { 0%, 60% { opacity: 1; } 100% { opacity: 0; } }
 .page canvas { display: block; }
 #pdf-frame { flex: 1; border: 0; width: 100%; background: #fff; }
 body.dragging { user-select: none; cursor: col-resize; }

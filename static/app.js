@@ -131,6 +131,7 @@ const Ed = {
   },
   get() { return this.cm ? this.cm.getValue() : this.ta.value; },
   focus() { (this.cm || this.ta).focus(); },
+  line() { return this.cm ? this.cm.getCursor().line + 1 : this.ta.value.slice(0, this.ta.selectionStart).split('\n').length; },
   refresh() { if (this.cm) this.cm.refresh(); },
   goto(line) {
     line = Math.max(0, (line | 0) - 1);
@@ -1318,12 +1319,66 @@ const Pdf = {
       canvas.style.height = Math.floor(vp.height / dpr) + 'px';
       div.style.width = canvas.style.width; div.style.height = canvas.style.height;
       await page.render({ canvas, canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
-      if (doc === this.doc) div.replaceChildren(canvas);
+      if (doc === this.doc) { div.querySelectorAll('canvas').forEach(c => c.remove()); div.prepend(canvas); }
     } catch (e) { /* documento substituido durante o desenho */ }
   },
   setZoom(z) {
     this.zoom = z === 'fit' ? 'fit' : Math.min(5, Math.max(0.25, z));
     this.layout(false);
+  },
+  // SyncTeX: realca caixas (em bp, do canto superior esquerdo) e leva-as a 1/3 da altura
+  highlight(n, boxes) {
+    const div = $('pages').querySelector(`.page[data-n="${n}"]`);
+    if (!div) return;
+    div.querySelectorAll('.sync-mark').forEach(m => m.remove());
+    const k = this.scale;
+    for (const b of boxes) {
+      const m = el('div', { class: 'sync-mark' });
+      Object.assign(m.style, { left: (b.x * k - 2) + 'px', top: (b.y * k - 2) + 'px', width: (b.w * k + 4) + 'px', height: (b.h * k + 4) + 'px' });
+      div.append(m);
+    }
+    const top = boxes.length ? Math.min(...boxes.map(b => b.y)) * k : 0;
+    const box = $('pages');
+    box.scrollTo({ top: Math.max(0, div.offsetTop - box.offsetTop + top - box.clientHeight / 3), behavior: 'smooth' });
+    setTimeout(() => div.querySelectorAll('.sync-mark').forEach(m => m.remove()), 2800);
+  },
+  // ponto do ecra -> {page, x, y} em bp, ou null fora das paginas
+  pointAt(clientX, clientY) {
+    const hit = document.elementFromPoint(clientX, clientY);
+    const div = hit && hit.closest && hit.closest('#pages .page');
+    if (!div) return null;
+    const r = div.getBoundingClientRect();
+    return { page: +div.dataset.n, x: (clientX - r.left) / this.scale, y: (clientY - r.top) / this.scale };
+  },
+};
+
+/* SyncTeX: codigo <-> PDF (precisa de uma compilacao com -synctex=1, que o LocalTeX faz) */
+const Sync = {
+  async forward() {
+    if (!S.project) return;
+    if (!S.path || !/\.tex$/i.test(S.path)) { setStatus(t('Abra um ficheiro .tex para o localizar no PDF.'), 'bad'); return; }
+    if (!Pdf.doc) { setStatus(t('Compile para ver o PDF.'), 'bad'); return; }
+    try {
+      const r = await api('GET', P() + `/synctex?file=${enc(S.path)}&line=${Ed.line()}`);
+      Pdf.highlight(r.page, r.boxes);
+    } catch (e) { setStatus(e.message, 'bad'); }
+  },
+  async inverse(pt) {
+    if (!S.project || !pt) return;
+    try {
+      const r = await api('GET', P() + `/synctex?page=${pt.page}&x=${pt.x.toFixed(2)}&y=${pt.y.toFixed(2)}`);
+      await openFile(r.file, r.line);
+    } catch (e) { setStatus(e.message, 'bad'); }
+  },
+  // botao «← Codigo»: o que esta a 1/3 da altura da area visivel do PDF
+  inverseVisible() {
+    if (!Pdf.doc) { setStatus(t('Compile para ver o PDF.'), 'bad'); return; }
+    const r = $('pages').getBoundingClientRect();
+    const y = r.top + r.height / 3;
+    const page = [...$('pages').querySelectorAll('.page')].find(d => { const b = d.getBoundingClientRect(); return b.top <= y && b.bottom >= y; });
+    if (!page) return;
+    const b = page.getBoundingClientRect();
+    this.inverse({ page: +page.dataset.n, x: b.width / 2 / Pdf.scale, y: (y - b.top) / Pdf.scale });
   },
 };
 
@@ -1402,6 +1457,9 @@ function wire() {
     if (!$('wc-pop').hidden && !e.target.closest('#wc-pop, #wordcount')) $('wc-pop').hidden = true;
   });
   $('btn-toggle-bottom').onclick = () => { $('bottom').classList.toggle('closed'); Ed.refresh(); };
+  $('sync-fwd').onclick = () => Sync.forward();
+  $('sync-inv').onclick = () => Sync.inverseVisible();
+  $('pages').addEventListener('dblclick', e => { const pt = Pdf.pointAt(e.clientX, e.clientY); if (pt) { e.preventDefault(); Sync.inverse(pt); } });
   $('zoom-in').onclick = () => Pdf.setZoom(Pdf.scale * 1.2);
   $('zoom-out').onclick = () => Pdf.setZoom(Pdf.scale / 1.2);
   $('zoom-fit').onclick = () => Pdf.setZoom('fit');
@@ -1416,6 +1474,12 @@ function wire() {
 
   // atalhos globais (fase de captura, para funcionarem dentro do editor)
   window.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.altKey && !e.shiftKey) {
+      const k = e.key.toLowerCase();
+      if (k === 'p' || e.code === 'KeyP') { e.preventDefault(); e.stopPropagation(); Sync.forward(); }
+      else if (k === 'c' || e.code === 'KeyC') { e.preventDefault(); e.stopPropagation(); Sync.inverseVisible(); }
+      return;
+    }
     if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
     if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); compile(); }
     else if (e.key.toLowerCase() === 's' && !e.shiftKey) {
